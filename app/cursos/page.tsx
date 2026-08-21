@@ -10,9 +10,9 @@ interface Curso {
 }
 
 export default function CursosPage() {
+  const [cursos, setCursos] = useState<Curso[]>([]);
   const [nome, setNome] = useState("");
   const [modalidade, setModalidade] = useState("");
-  const [cursos, setCursos] = useState<Curso[]>([]);
 
   async function carregarCursos() {
     const { data } = await supabase
@@ -20,7 +20,9 @@ export default function CursosPage() {
       .select("*")
       .order("nome");
 
-    setCursos(data || []);
+    if (data) {
+      setCursos(data);
+    }
   }
 
   async function salvarCurso() {
@@ -28,13 +30,13 @@ export default function CursosPage() {
 
     await supabase.from("cursos").insert({
       nome,
-      modalidade,
+      modalidade
     });
 
     setNome("");
     setModalidade("");
 
-    carregarCursos();
+    await carregarCursos();
   }
 
   useEffect(() => {
@@ -44,11 +46,11 @@ export default function CursosPage() {
   return (
     <main className="p-8">
       <h1 className="mb-6 text-3xl font-bold">
-        Cursos
+        Cadastro de Cursos
       </h1>
 
-      <div className="mb-8 rounded-lg bg-white p-6 shadow">
-        <div className="grid gap-4 md:grid-cols-2">
+      <div className="mb-6 rounded bg-white p-6 shadow">
+        <div className="grid gap-4">
           <input
             className="rounded border p-3"
             placeholder="Nome do Curso"
@@ -62,17 +64,17 @@ export default function CursosPage() {
             value={modalidade}
             onChange={(e) => setModalidade(e.target.value)}
           />
-        </div>
 
-        <button
-          onClick={salvarCurso}
-          className="mt-4 rounded bg-blue-600 px-6 py-3 text-white"
-        >
-          Salvar Curso
-        </button>
+          <button
+            onClick={salvarCurso}
+            className="rounded bg-blue-600 p-3 text-white"
+          >
+            Salvar Curso
+          </button>
+        </div>
       </div>
 
-      <div className="rounded-lg bg-white p-6 shadow">
+      <div className="rounded bg-white p-6 shadow">
         <h2 className="mb-4 text-xl font-bold">
           Cursos Cadastrados
         </h2>
@@ -80,11 +82,13 @@ export default function CursosPage() {
         {cursos.map((curso) => (
           <div
             key={curso.id}
-            className="border-b py-2"
+            className="border-b py-3"
           >
             <strong>{curso.nome}</strong>
-            <br />
-            {curso.modalidade}
+
+            <div>
+              {curso.modalidade}
+            </div>
           </div>
         ))}
       </div>
