@@ -9,26 +9,14 @@ export default function HomePage() {
         Plataforma Inteligente para Planejamento de Ensino do SENAI-PR
       </p>
 
-      <div className="mt-8 space-y-4">
-        <div>
-          /cursos
-        </div>
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold">
+          Sistema Online
+        </h2>
 
-        <div>
-          iculares">
-            Unidades Curriculares
-          </a>
-        </div>
-
-        <div>
-          <peuc/criar>
-        </div>
-
-        <div>
-          importacao">
-            Importação
-          </a>
-        </div>
+        <p className="mt-2">
+          Conectado ao Supabase e publicado na Vercel.
+        </p>
       </div>
     </main>
   );
