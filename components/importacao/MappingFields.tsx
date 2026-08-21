@@ -14,6 +14,7 @@ export default function MappingFields() {
           <label className="block text-sm font-medium">
             Nome UC
           </label>
+
           <select className="mt-1 w-full rounded border p-2">
             <option>unidade_curricular</option>
           </select>
@@ -23,6 +24,7 @@ export default function MappingFields() {
           <label className="block text-sm font-medium">
             Carga Horária
           </label>
+
           <select className="mt-1 w-full rounded border p-2">
             <option>carga_horaria</option>
           </select>
@@ -32,8 +34,12 @@ export default function MappingFields() {
           <label className="block text-sm font-medium">
             Capacidades
           </label>
+
           <select className="mt-1 w-full rounded border p-2">
             <option>capacidades</option>
           </select>
         </div>
-      <
+      </div>
+    </div>
+  );
+}
