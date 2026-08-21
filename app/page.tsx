@@ -1,8 +1,10 @@
+import Link from 'next/link'
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-100 p-8">
       <div className="mx-auto max-w-6xl">
-        <h1 className="mb-2 text-5xl font-bold">
+        <h1 className="mb-2 text-5xl font-bold text-slate-900">
           Easy PEUC Generator
         </h1>
 
@@ -11,37 +13,53 @@ export default function HomePage() {
         </p>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <a
-                 className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
+          <Link
+            href="/cursos"
+            className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
           >
-            <h2 className="text-xl font-bold">Cursos</h2>
-          </a>
+            <h2 className="text-xl font-bold text-slate-800">Cursos</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Gerencie a lista de cursos institucionais
+            </p>
+          </Link>
 
-          iculares"
-            className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
+          <Link
+            href="/unidades-curriculares"
+            className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
           >
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-800">
               Unidades Curriculares
             </h2>
-          </a>
+            <p className="mt-2 text-sm text-slate-500">
+              Cadastre e vincule UCs aos cursos
+            </p>
+          </Link>
 
-          iar"
-            className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
+          <Link
+            href="/peuc/criar"
+            className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
           >
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-800">
               Nova PEUC
             </h2>
-          </a>
+            <p className="mt-2 text-sm text-slate-500">
+              Gere um novo plano de ensino
+            </p>
+          </Link>
 
-          <a
-    acao className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
+          <Link
+            href="/importacao"
+            className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
           >
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-slate-800">
               Importação Excel
             </h2>
-          </a>
+            <p className="mt-2 text-sm text-slate-500">
+              Importe dados em lote via planilha
+            </p>
+          </Link>
         </div>
       </div>
     </main>
-  );
+  )
 }
