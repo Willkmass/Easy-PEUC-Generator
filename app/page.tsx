@@ -12,43 +12,40 @@ export default function HomePage() {
       </div>
 
       <div className="mx-auto max-w-7xl p-8">
-        <div className="mb-8 grid gap-6 md:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-4">
           <a
             href="/cursos"
-            className="rounded-lg bg-white p-6            </h2>
+            classNameover:bg-slate-50"
+          >
+            <h2 className="text-xl font-bold">Cursos</h2>
 
             <p className="mt-2 text-slate-600">
               Gerenciar cursos cadastrados.
             </p>
           </a>
 
-          <a
-            href="/un         className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
+          idades-curriculares"
+            className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
           >
-            <h2 className="text-xl font-bold">
-              UCs
-            </h2>
+            <h2 className="text-xl font-bold">UCs</h2>
 
             <p className="mt-2 text-slate-600">
               Gerenciar unidades curriculares.
             </p>
           </a>
 
-          /peuc/criar
-            <h2 className="text-xl font-bold">
-              Nova PEUC
-            </h2>
+          <a
+                     <h2 className="text-xl font-bold">Nova PEUC</h2>
 
             <p className="mt-2 text-slate-600">
               Criar um novo planejamento.
             </p>
           </a>
 
-          /importacao className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
+          "
+            className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
           >
-            <h2 className="text-xl font-bold">
-              Importação
-            </h2>
+            <h2 className="text-xl font-bold">Importação</h2>
 
             <p className="mt-2 text-slate-600">
               Importar dados em Excel.
@@ -56,7 +53,7 @@ export default function HomePage() {
           </a>
         </div>
 
-        <div className="rounded-lg bg-white p-8 shadow">
+        <div className="mt-8 rounded-lg bg-white p-8 shadow">
           <h2 className="text-2xl font-bold">
             Objetivo do Sistema
           </h2>
@@ -68,6 +65,10 @@ export default function HomePage() {
           </p>
 
           <p className="mt-4 text-slate-700">
-            O sistema foi projetado para se tornar mais inteligente à medida que
-            novas PEUCs forem criadas e cadastradas.
-      
+            O sistema evolui continuamente conforme novas PEUCs forem cadastradas.
+          </p>
+        </div>
+      </div>
+    </main>
+  );
+}
