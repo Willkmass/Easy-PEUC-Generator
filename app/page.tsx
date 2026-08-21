@@ -12,16 +12,20 @@ export default function HomePage() {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <a
-            href="/cursos"
+                 className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
+          >
+            <h2 className="text-xl font-bold">Cursos</h2>
+          </a>
+
+          iculares"
             className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
-                 /unidades-curriculares hover:bg-slate-50"
           >
             <h2 className="text-xl font-bold">
               Unidades Curriculares
             </h2>
           </a>
 
-          /criar"
+          iar"
             className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
           >
             <h2 className="text-xl font-bold">
@@ -30,8 +34,7 @@ export default function HomePage() {
           </a>
 
           <a
-            href="/importacao"
-rounded-lg bg-white p-6 shadow hover:bg-slate-50"
+    acao className="rounded-lg bg-white p-6 shadow hover:bg-slate-50"
           >
             <h2 className="text-xl font-bold">
               Importação Excel
