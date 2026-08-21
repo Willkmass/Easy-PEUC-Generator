@@ -14,19 +14,16 @@ export default function HomePage() {
       <div className="mx-auto max-w-7xl p-8">
         <div className="mb-8 grid gap-6 md:grid-cols-4">
           <a
-                className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
-          >
-            <h2 className="text-xl font-bold">
-              Cursos
-            </h2>
+            href="/cursos"
+            className="rounded-lg bg-white p-6            </h2>
 
             <p className="mt-2 text-slate-600">
               Gerenciar cursos cadastrados.
             </p>
           </a>
 
-          "
-            className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
+          <a
+            href="/un         className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
           >
             <h2 className="text-xl font-bold">
               UCs
@@ -37,9 +34,9 @@ export default function HomePage() {
             </p>
           </a>
 
-          <a
-            href="/peuc/criar"
-            className="rounded-lg bg-white p-6 C
+          /peuc/criar
+            <h2 className="text-xl font-bold">
+              Nova PEUC
             </h2>
 
             <p className="mt-2 text-slate-600">
@@ -47,8 +44,7 @@ export default function HomePage() {
             </p>
           </a>
 
-          importacao"
-            className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
+          /importacao className="rounded-lg bg-white p-6 shadow transition hover:bg-slate-50"
           >
             <h2 className="text-xl font-bold">
               Importação
@@ -74,9 +70,4 @@ export default function HomePage() {
           <p className="mt-4 text-slate-700">
             O sistema foi projetado para se tornar mais inteligente à medida que
             novas PEUCs forem criadas e cadastradas.
-          </p>
-        </div>
-      </div>
-    </main>
-  );
-}
+      
