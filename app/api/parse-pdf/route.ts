@@ -9,27 +9,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Arquivo PDF não fornecido' }, { status: 400 });
     }
 
-    // Converte o arquivo PDF em Base64 para envio direto à API de visão
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const base64Pdf = buffer.toString('base64');
 
-    const systemPrompt = `Você é um especialista em análise visual de Planos de Curso (PCA) do SENAI-PR.
-Analise a estrutura visual das tabelas deste PDF e extraia os dados exatamente como aparecem visualmente.
+    const systemPrompt = `Você é um extrator de dados especialista nos documentos do SENAI-PR (Plano de Curso / PCA).
+Analise visualmente a primeira página e a estrutura de tabelas do PDF para preencher os dados com EXTREMA precisÃO.
 
-Regras Estritas de Extração:
-1. "curso": Extraia o nome exato do curso indicado no cabeçalho/título principal.
-2. "carga_horaria_total": Carga horária total do curso (ex: "600h").
-3. "unidades_curriculares": Extraia APENAS disciplinas/módulos de ensino com carga horaria.
-   - Ignore completamente endereços, CEP, telefones, CNPJ ou rodapés institucionais.
-4. Para cada UC, separe:
-   - "capacidades": Frases com verbos no infinitivo.
-   - "conhecimentos": Tópicos e conteúdos programáticos.
+REGRAS DE CLASSIFICAÇÃO:
+1. "categoria": Identifique o tipo de oferta de ensino (ex: "Aprendizagem Industrial", "Habilitação Técnica", "Aperfeiçoamento Professional", "Qualificação Profissional"). NÃO COLOQUE O NOME DO CURSO AQUI.
+2. "curso": Extraia o NOME ESPECÍFICO E REAL DO CURSO (ex: "Auxiliar de Linha de Produção", "Assistente Administrativo", "Eletricista Industrial"). NUNCA insira termos genéricos como "Aprendizagem Industrial" neste campo.
+3. "carga_horaria_total": Carga horária total indicada no documento (ex: "400h", "800h").
+4. "unidades_curriculares": Extraia APENAS disciplinas/módulos de ensino reais.
+   - REGRA ABSOLUTA: Descarte endereços, CNPJ, cidades, CEP, telefones e rodapés institucionais. Eles NÃO são unidades curriculares.
+5. Para cada UC extraída:
+   - "capacidades": Apenas itens com verbos de ação/infinitivo.
+   - "conhecimentos": Conteúdos e tópicos programáticos.
 
-Responda EXCLUSIVAMENTE em formato JSON:
+Responda EXCLUSIVAMENTE em formato JSON com esta estrutura:
 {
-  "curso": "Nome do Curso",
-  "carga_horaria_total": "600h",
+  "categoria": "Aprendizagem Industrial",
+  "curso": "Auxiliar de Linha de Produção",
+  "carga_horaria_total": "400h",
   "unidades_curriculares": [
     {
       "numero": 1,
