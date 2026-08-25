@@ -79,30 +79,38 @@ export interface CronogramaAula {
 }
 
 export interface PEUC {
-  id: string;
-  cursoId: string;
-  unidadeCurricularId: string;
-  docenteId: string;
-  modalidade: string;
-  cargaHorariaUC: number;
+  id?: string;
+  cursoId?: string;
+  unidadeCurricularId?: string;
+  docenteId?: string;
+  modalidade?: string;
+  cargaHorariaUC?: number;
   
+  // Mapeamentos legados e de compatibilidade com os componentes
+  curso_id?: string;
+  unidade_curricular_id?: string;
+  docente_nome?: string;
+  carga_horaria_total?: number;
+  situacao_aprendizagem?: string;
+  observacoes?: string;
+
   // Seleções do PCA para esta PEUC
-  capacidadesSelecionadasIds: string[];
-  conhecimentosSelecionadosIds: string[];
+  capacidadesSelecionadasIds?: string[];
+  conhecimentosSelecionadosIds?: string[];
 
   // Contextualização e Estratégia
-  tipoSituacaoAprendizagem: TipoSituacaoAprendizagem;
-  integraOutraUC: boolean;
+  tipoSituacaoAprendizagem?: TipoSituacaoAprendizagem;
+  integraOutraUC?: boolean;
   ucsIntegradasIds?: string[]; // Se houver integração com outras UCs
   
-  contextualizacao: string; // O cenário / problema real
-  desafio: string; // O que o aluno precisará resolver/fazer
-  resultadosEsperados: string; // Entregáveis do aluno
+  contextualizacao?: string; // O cenário / problema real
+  desafio?: string; // O que o aluno precisará resolver/fazer
+  resultadosEsperados?: string; // Entregáveis do aluno
 
   // Cronograma / Plano de Aulas detalhado
-  cronograma: CronogramaAula[];
+  cronograma?: CronogramaAula[];
 
-  status: "rascunho" | "em_revisao" | "aprovado";
+  status?: "rascunho" | "em_revisao" | "aprovado";
   createdAt?: string;
   updatedAt?: string;
 }
