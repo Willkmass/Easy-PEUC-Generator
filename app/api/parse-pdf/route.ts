@@ -52,10 +52,9 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
       });
     });
 
-    // Chamada à API oficial utilizando o modelo estável v1beta
-    // Nota: Caso prefira a linha v1.5 estável, basta alterar o nome para gemini-1.5-flash
+    // Chamada à API Gemini 2.5 Flash na rota v1
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
