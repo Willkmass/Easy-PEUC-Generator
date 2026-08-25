@@ -1,104 +1,126 @@
-import Link from 'next/link';
+'use client';
 
-export default function HomePage() {
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+
+export default function DashboardPage() {
+  const [stats, setStats] = useState({ cursos: 0, ucs: 0, peucs: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function carregarMetricas() {
+      try {
+        const [resCursos, resUcs, resPeucs] = await Promise.all([
+          supabase.from('cursos').select('id', { count: 'exact', head: true }),
+          supabase.from('unidades_curriculares').select('id', { count: 'exact', head: true }),
+          supabase.from('peucs').select('id', { count: 'exact', head: true }),
+        ]);
+
+        setStats({
+          cursos: resCursos.count || 0,
+          ucs: resUcs.count || 0,
+          peucs: resPeucs.count || 0,
+        });
+      } catch (err) {
+        console.error('Erro ao carregar métricas:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    carregarMetricas();
+  }, []);
+
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Cabeçalho do Dashboard */}
-      <div className="mb-8 flex flex-col gap-1 border-b border-slate-200 pb-5">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-          Painel de Gestão Pedagógica
+    <main className="mx-auto max-w-7xl p-6">
+      {/* Cabeçalho de Boas-Vindas */}
+      <div className="mb-8 border-b border-slate-200 pb-5">
+        <span className="rounded bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">
+          SENAI-PR • Gestão Pedagógica
+        </span>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
+          Easy PEUC Generator
         </h1>
-        <p className="text-sm text-slate-500">
-          Automação de extratos de PCA e montagem simplificada de PEUCs do SENAI-PR.
+        <p className="mt-1 text-sm text-slate-500">
+          Plataforma automatizada para extração de Planos de Curso (PCA) e elaboração de Planos de Ensino por Unidade Curricular.
         </p>
       </div>
 
-      {/* Grid de Ações Rápidas */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-10">
-        
-        {/* Card 1: Importar PCA */}
-        <Link
-          href="/importar-pca"
-          className="group relative flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-blue-500 hover:shadow-md"
-        >
-          <div>
-            <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-              📄
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
-              Importar PCA (PDF)
-            </h2>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Extraia automaticamente dados de Planos de Curso via visão computacional e organize UCs, Capacidades e Conhecimentos.
-            </p>
-          </div>
-          <div className="mt-6 flex items-center text-xs font-semibold text-blue-600">
-            Acessar extrator <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
-          </div>
-        </Link>
+      {/* Cards de Métricas */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Cursos Cadastrados
+          </span>
+          <p className="mt-2 text-3xl font-extrabold text-slate-900">
+            {loading ? '...' : stats.cursos}
+          </p>
+          <span className="mt-1 block text-xs text-slate-500">Extraídos via PCA (PDF)</span>
+        </div>
 
-        {/* Card 2: Nova PEUC */}
-        <Link
-          href="/peuc/criar"
-          className="group relative flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-blue-500 hover:shadow-md"
-        >
-          <div>
-            <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-              ✏️
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
-              Criar Nova PEUC
-            </h2>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Elabore o Plano de Ensino por Unidade Curricular integrando situações de aprendizagem e cronogramas de aula.
-            </p>
-          </div>
-          <div className="mt-6 flex items-center text-xs font-semibold text-emerald-600">
-            Iniciar elaboração <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
-          </div>
-        </Link>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Unidades Curriculares
+          </span>
+          <p className="mt-2 text-3xl font-extrabold text-blue-600">
+            {loading ? '...' : stats.ucs}
+          </p>
+          <span className="mt-1 block text-xs text-slate-500">Mapeadas no Supabase</span>
+        </div>
 
-        {/* Card 3: Cursos & UCs */}
-        <Link
-          href="/cursos"
-          className="group relative flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-blue-500 hover:shadow-md sm:col-span-2 lg:col-span-1"
-        >
-          <div>
-            <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              📚
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
-              Acervo de Cursos & UCs
-            </h2>
-            <p className="mt-2 text-xs leading-relaxed text-slate-500">
-              Consulte e gerencie a base de dados de cursos cadastrados, separando Categoria Pedagógica do Nome do Curso.
-            </p>
-          </div>
-          <div className="mt-6 flex items-center text-xs font-semibold text-indigo-600">
-            Ver base cadastrada <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
-          </div>
-        </Link>
-
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+            PEUCs Geradas
+          </span>
+          <p className="mt-2 text-3xl font-extrabold text-emerald-600">
+            {loading ? '...' : stats.peucs}
+          </p>
+          <span className="mt-1 block text-xs text-slate-500">Planos de ensino concluídos</span>
+        </div>
       </div>
 
-      {/* Painel Informativo de Status */}
+      {/* Ações Rápidas */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4">
-          Status do Sistema
-        </h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 text-center">
-          <div className="rounded-lg bg-slate-50 p-4 border border-slate-100">
-            <span className="block text-2xl font-bold text-slate-900">IA Activa</span>
-            <span className="text-xs text-slate-500">Extrator Gemini Vision 2.5</span>
-          </div>
-          <div className="rounded-lg bg-slate-50 p-4 border border-slate-100">
-            <span className="block text-2xl font-bold text-slate-900">Supabase</span>
-            <span className="text-xs text-slate-500">Banco de Dados Conectado</span>
-          </div>
-          <div className="rounded-lg bg-slate-50 p-4 border border-slate-100">
-            <span className="block text-2xl font-bold text-slate-900">SENAI-PR</span>
-            <span className="text-xs text-slate-500">Diretrizes Pedagógicas</span>
-          </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Ações do Sistema</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          <Link
+            href="/importar-pca"
+            className="group rounded-lg border border-slate-200 p-4 hover:border-blue-500 hover:bg-blue-50/50 transition"
+          >
+            <h3 className="font-semibold text-sm text-slate-900 group-hover:text-blue-600">
+              📄 1. Importar PCA (PDF)
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Alimente a base de dados extraindo Categoria, Curso e UCs via IA.
+            </p>
+          </Link>
+
+          <Link
+            href="/cursos"
+            className="group rounded-lg border border-slate-200 p-4 hover:border-blue-500 hover:bg-blue-50/50 transition"
+          >
+            <h3 className="font-semibold text-sm text-slate-900 group-hover:text-blue-600">
+              📚 2. Consultar Acervo
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Visualize a lista de cursos cadastrados e suas respectivas disciplinas.
+            </p>
+          </Link>
+
+          <Link
+            href="/peuc/criar"
+            className="group rounded-lg border border-slate-200 p-4 hover:border-blue-500 hover:bg-blue-50/50 transition"
+          >
+            <h3 className="font-semibold text-sm text-slate-900 group-hover:text-blue-600">
+              ⚡ 3. Criar Nova PEUC
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Elabore o Plano de Ensino integrando a Situação de Aprendizagem.
+            </p>
+          </Link>
+
         </div>
       </div>
     </main>
