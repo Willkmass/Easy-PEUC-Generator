@@ -44,7 +44,7 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
 
     const parts: any[] = [{ text: systemPrompt }];
     images.forEach((imgBase64: string) => {
-      // Remove cabeçalhos base64 se enviados do frontend
+      // Limpa os cabeçalhos data URL do base64 se enviados do cliente
       const cleanBase64 = imgBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
       parts.push({
         inlineData: {
@@ -54,8 +54,9 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
       });
     });
 
+    // Endpoint atualizado com o modelo oficial gemini-3.6-flash
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,10 +78,8 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
     }
 
     let rawJsonText = data.candidates[0].content.parts[0].text;
-    
-    // Tratamento defensivo do JSON retornado pela IA
     rawJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
-    
+
     let parsedData;
     try {
       parsedData = JSON.parse(rawJsonText);
@@ -120,7 +119,7 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
       const { error: erroUC } = await supabase.from('unidades_curriculares').insert(ucsPayload);
       
       if (erroUC) {
-        // Rollback manual: Remove o curso criado se falhar em inserir as UCs
+        // Rollback defensivo
         await supabase.from('cursos').delete().eq('id', cursoCriado.id);
         return NextResponse.json({ error: `Erro ao salvar UCs no Supabase: ${erroUC.message}` }, { status: 500 });
       }
