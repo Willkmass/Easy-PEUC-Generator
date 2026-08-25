@@ -13,20 +13,17 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
     const base64Pdf = buffer.toString('base64');
 
-    const systemPrompt = `Você é um extrator de dados especialista nos documentos do SENAI-PR (Plano de Curso / PCA).
-Analise visualmente a primeira página e a estrutura de tabelas do PDF para preencher os dados com EXTREMA precisÃO.
+    const systemPrompt = `Você é um extrator de dados de Planos de Curso (PCA) do SENAI-PR.
+Analise a estrutura visual do documento e extraia os campos com extrema precisão:
 
-REGRAS DE CLASSIFICAÇÃO:
-1. "categoria": Identifique o tipo de oferta de ensino (ex: "Aprendizagem Industrial", "Habilitação Técnica", "Aperfeiçoamento Professional", "Qualificação Profissional"). NÃO COLOQUE O NOME DO CURSO AQUI.
-2. "curso": Extraia o NOME ESPECÍFICO E REAL DO CURSO (ex: "Auxiliar de Linha de Produção", "Assistente Administrativo", "Eletricista Industrial"). NUNCA insira termos genéricos como "Aprendizagem Industrial" neste campo.
-3. "carga_horaria_total": Carga horária total indicada no documento (ex: "400h", "800h").
-4. "unidades_curriculares": Extraia APENAS disciplinas/módulos de ensino reais.
-   - REGRA ABSOLUTA: Descarte endereços, CNPJ, cidades, CEP, telefones e rodapés institucionais. Eles NÃO são unidades curriculares.
-5. Para cada UC extraída:
-   - "capacidades": Apenas itens com verbos de ação/infinitivo.
-   - "conhecimentos": Conteúdos e tópicos programáticos.
+REGRAS RÍGIDAS DE CLASSIFICAÇÃO:
+1. "categoria": Identifique o TIPO DA OFERTA (ex: "Aprendizagem Industrial", "Habilitação Técnica", "Aperfeiçoamento Profissional"). NUNCA COLOQUE O NOME DO CURSO AQUI.
+2. "curso": Identifique o NOME REAL E ESPECÍFICO DO CURSO (ex: "Auxiliar de Linha de Produção", "Assistente Administrativo", "Eletricista Industrial"). NUNCA insira "Aprendizagem Industrial" neste campo.
+3. "carga_horaria_total": Carga horária total (ex: "400h", "800h").
+4. "unidades_curriculares": Extraia APENAS as disciplinas/módulos de ensino com carga horária.
+   - REGRA ABSOLUTA: Descarte endereços, bairros, cidades, CEP, telefones, CNPJ e rodapés institucionais. Eles NÃO são unidades curriculares.
 
-Responda EXCLUSIVAMENTE em formato JSON com esta estrutura:
+Responda EXCLUSIVAMENTE em formato JSON com a estrutura:
 {
   "categoria": "Aprendizagem Industrial",
   "curso": "Auxiliar de Linha de Produção",
@@ -34,7 +31,7 @@ Responda EXCLUSIVAMENTE em formato JSON com esta estrutura:
   "unidades_curriculares": [
     {
       "numero": 1,
-      "nome": "Nome da UC",
+      "nome": "Nome oficial da UC",
       "carga_horaria": 40,
       "capacidades": ["Capacidade 1", "Capacidade 2"],
       "conhecimentos": ["Conhecimento 1", "Conhecimento 2"]
@@ -53,35 +50,20 @@ Responda EXCLUSIVAMENTE em formato JSON com esta estrutura:
               role: 'user',
               parts: [
                 { text: systemPrompt },
-                {
-                  inlineData: {
-                    mimeType: 'application/pdf',
-                    data: base64Pdf
-                  }
-                }
+                { inlineData: { mimeType: 'application/pdf', data: base64Pdf } }
               ]
             }
           ],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.1
-          }
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
         })
       }
     );
 
     const data = await response.json();
-    
-    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error('Resposta inválida do modelo de IA');
-    }
-
     const rawJson = data.candidates[0].content.parts[0].text;
-    const parsedData = JSON.parse(rawJson);
-
-    return NextResponse.json(parsedData);
+    return NextResponse.json(JSON.parse(rawJson));
   } catch (error) {
-    console.error('Erro no processamento do PDF via IA:', error);
+    console.error('Erro no PDF:', error);
     return NextResponse.json({ error: 'Falha ao processar o PDF com a IA' }, { status: 500 });
   }
 }
