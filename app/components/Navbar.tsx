@@ -11,6 +11,7 @@ export default function Navbar() {
     { label: 'Importar PCA (PDF)', href: '/importar-pca' },
     { label: 'Cursos & UCs', href: '/cursos' },
     { label: 'Nova PEUC', href: '/peuc/criar' },
+    { label: 'PEUCs Salvas', href: '/peuc' },
   ];
 
   return (
