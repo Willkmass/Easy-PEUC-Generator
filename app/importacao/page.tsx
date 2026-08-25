@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
 import { supabase } from "@/lib/supabase";
 
-// Configuração do Worker do PDF.js
+// Configuração do Worker dinâmico via CDN
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface ExtractedData {
@@ -35,13 +35,16 @@ export default function ImportacaoPdfPage() {
     setIsExtracting(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
       let fullText = "";
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(" ");
+        const pageText = textContent.items
+          .map((item: any) => (item.str ? item.str : ""))
+          .join(" ");
         fullText += pageText + "\n";
       }
 
@@ -57,9 +60,8 @@ export default function ImportacaoPdfPage() {
     }
   };
 
-  // Função auxiliar para mapear padrões de texto do PCA
+  // Função para extração e agrupamento de padrões do PCA
   const parsePcaText = (text: string): ExtractedData => {
-    // Regex/Lógica adaptada para identificar estruturas comuns em documentos PCA SENAI
     const cursoMatch = text.match(/CURSO:\s*([^\n\r]+)/i) || text.match(/TÍTULO DO CURSO:\s*([^\n\r]+)/i);
     const modalidadeMatch = text.match(/MODALIDADE:\s*([^\n\r]+)/i);
 
@@ -162,7 +164,7 @@ export default function ImportacaoPdfPage() {
         <div className="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center bg-white shadow-sm space-y-4">
           <h2 className="text-xl font-semibold">Selecione o arquivo do PCA (PDF)</h2>
           <p className="text-sm text-slate-500">O sistema fará a varredura das UCs, Capacidades e Conhecimentos.</p>
-          
+
           <input
             type="file"
             accept=".pdf"
@@ -178,7 +180,7 @@ export default function ImportacaoPdfPage() {
       {step === 2 && parsedData && (
         <div className="bg-white p-6 rounded-lg shadow space-y-6">
           <h2 className="text-xl font-semibold border-b pb-2">Revisão das Informações Extraídas</h2>
-          
+
           <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded">
             <div><strong>Curso:</strong> {parsedData.curso}</div>
             <div><strong>Modalidade:</strong> {parsedData.modalidade}</div>
