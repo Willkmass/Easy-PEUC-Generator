@@ -1,29 +1,32 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
     const { images } = await request.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
-      return NextResponse.json({ error: 'Nenhuma imagem enviada' }, { status: 400 });
+      return NextResponse.json({ error: 'Nenhuma imagem do PDF foi enviada.' }, { status: 400 });
     }
 
-    const systemPrompt = `Você é um especialista em extração de Planos de Curso (PCA) do SENAI-PR.
-Analise a estrutura das imagens e extraia estritamente os campos solicitados.
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'A variável GEMINI_API_KEY não está configurada no ambiente/Vercel.' },
+        { status: 500 }
+      );
+    }
 
-REGRAS RÍGIDAS DE SEPARAÇÃO:
-1. "categoria": Apenas a modalidade da oferta (ex: "Aprendizagem Industrial", "Habilitação Técnica", "Aperfeiçoamento Profissional"). NUNCA insira o nome do curso aqui.
-2. "curso": Apenas o NOME REAL DA OCUPAÇÃO/CURSO (ex: "Auxiliar de Linha de Produção", "Assistente Administrativo"). NUNCA insira termos como "Aprendizagem Industrial" neste campo.
-3. "carga_horaria_total": Carga horária total (ex: "400h").
-4. "unidades_curriculares": Apenas disciplinas com carga horária. Ignore endereços, telefones, CNPJ e CEP.
+    const systemPrompt = `Você é um especialista em análise pedagógica do SENAI-PR.
+Sua missão é extrair com precisão os dados do Plano de Curso (PCA) fornecido em imagem.
 
-Responda EXCLUSIVAMENTE em formato JSON:
+REGRAS ESTRITAS DE EXTRAÇÃO:
+1. "categoria": Informe apenas a modalidade/categoria pedagógica (ex: "Aprendizagem Industrial", "Habilitação Técnica", "Qualificação Profissional"). NUNCA coloque o nome do curso aqui.
+2. "curso": Informe APENAS o nome oficial do curso/ocupação (ex: "Auxiliar de Linha de Produção", "Assistente Administrativo"). NUNCA inclua a categoria aqui.
+3. "carga_horaria_total": Carga horária total no formato "XXXh" (ex: "400h").
+4. "unidades_curriculares": Lista de UCs encontradas. Ignore rodapés, CNPJ, endereços e nomes de unidades físicas do SENAI.
+
+Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
 {
   "categoria": "Aprendizagem Industrial",
   "curso": "Auxiliar de Linha de Produção",
@@ -31,66 +34,92 @@ Responda EXCLUSIVAMENTE em formato JSON:
   "unidades_curriculares": [
     {
       "numero": 1,
-      "nome": "Nome oficial da UC",
+      "nome": "Nome da Unidade Curricular",
       "carga_horaria": 40,
-      "capacidades": ["Capacidade 1"],
-      "conhecimentos": ["Conhecimento 1"]
+      "capacidades": ["Capacidade 1", "Capacidade 2"],
+      "conhecimentos": ["Conhecimento 1", "Conhecimento 2"]
     }
   ]
 }`;
 
     const parts: any[] = [{ text: systemPrompt }];
-    images.forEach((img: string) => {
-      parts.push({ inlineData: { mimeType: 'image/png', data: img } });
+    images.forEach((imgBase64: string) => {
+      parts.push({
+        inlineData: {
+          mimeType: 'image/png',
+          data: imgBase64,
+        },
+      });
     });
 
+    // Chamada à API Gemini 2.5 Flash
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
-        })
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
+        }),
       }
     );
 
     const data = await geminiRes.json();
-    const rawJson = data.candidates[0].content.parts[0].text;
-    const parsedData = JSON.parse(rawJson);
 
-    // 1. Grava o Curso com a Categoria no Supabase
-    const { data: cursoBanco, error: cursoErr } = await supabase
+    if (!geminiRes.ok || !data.candidates || data.candidates.length === 0) {
+      const msgErro = data.error?.message || 'Falha na resposta da API Gemini.';
+      return NextResponse.json({ error: `Erro no Gemini: ${msgErro}` }, { status: 500 });
+    }
+
+    const rawJsonText = data.candidates[0].content.parts[0].text;
+    const parsedData = JSON.parse(rawJsonText);
+
+    // 1. Inserção do Curso na tabela 'cursos'
+    const { data: cursoCriado, error: erroCurso } = await supabase
       .from('cursos')
       .insert({
         nome: parsedData.curso,
         categoria: parsedData.categoria,
-        carga_horaria_total: parsedData.carga_horaria_total
+        carga_horaria_total: parsedData.carga_horaria_total,
       })
       .select()
       .single();
 
-    if (cursoErr) throw cursoErr;
-
-    // 2. Grava as Unidades Curriculares vinculadas ao Curso
-    if (parsedData.unidades_curriculares?.length > 0) {
-      const ucsParaInserir = parsedData.unidades_curriculares.map((uc: any) => ({
-        curso_id: cursoBanco.id,
-        numero: uc.numero,
-        nome: uc.nome,
-        carga_horaria: uc.carga_horaria,
-        capacidades: uc.capacidades || [],
-        conhecimentos: uc.conhecimentos || []
-      }));
-
-      const { error: ucErr } = await supabase.from('unidades_curriculares').insert(ucsParaInserir);
-      if (ucErr) console.error('Erro ao salvar UCs:', ucErr);
+    if (erroCurso) {
+      return NextResponse.json({ error: `Erro ao salvar curso no Supabase: ${erroCurso.message}` }, { status: 500 });
     }
 
-    return NextResponse.json({ sucesso: true, curso: cursoBanco, dadosExtraidos: parsedData });
-  } catch (error: any) {
-    console.error(error);
-    return NextResponse.json({ error: error.message || 'Erro ao processar e salvar no banco' }, { status: 500 });
+    // 2. Inserção das UCs vinculadas na tabela 'unidades_curriculares'
+    if (parsedData.unidades_curriculares && parsedData.unidades_curriculares.length > 0) {
+      const ucsPayload = parsedData.unidades_curriculares.map((uc: any) => ({
+        curso_id: cursoCriado.id,
+        numero: uc.numero || 1,
+        nome: uc.nome,
+        carga_horaria: uc.carga_horaria || 0,
+        capacidades: uc.capacidades || [],
+        conhecimentos: uc.conhecimentos || [],
+      }));
+
+      const { error: erroUC } = await supabase.from('unidades_curriculares').insert(ucsPayload);
+      if (erroUC) {
+        console.error('Erro ao inserir UCs:', erroUC.message);
+      }
+    }
+
+    return NextResponse.json({
+      sucesso: true,
+      curso: cursoCriado,
+      dados: parsedData,
+    });
+  } catch (err: any) {
+    console.error('Erro geral no endpoint parse-pdf:', err);
+    return NextResponse.json(
+      { error: err.message || 'Erro interno ao processar e salvar no banco.' },
+      { status: 500 }
+    );
   }
 }
