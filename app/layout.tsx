@@ -1,10 +1,9 @@
-import "./globals.css";
-import type { Metadata } from "next";
-import Navbar from "@/components/Navbar";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Easy PEUC Generator",
-  description: "Sistema Inteligente para Geração de PEUC SENAI-PR"
+  title: 'Easy PEUC Generator',
+  description: 'Sistema Inteligente de Geração de PEUC do SENAI-PR',
 };
 
 export default function RootLayout({
@@ -14,13 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className="bg-slate-50 min-h-screen text-slate-800 antialiased flex flex-col">
-        {/* Componente de Navegação Global */}
-        <Navbar />
-        
-        {/* Conteúdo da Rota Ativa */}
-        <main className="flex-1 py-6">{children}</main>
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
