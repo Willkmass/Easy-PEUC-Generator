@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-// Inicialização do cliente Supabase usando as variáveis de ambiente existentes
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+import { supabase } from '@/lib/supabase'
 
 interface Curso {
   id: string
@@ -30,7 +25,6 @@ export default function CursosPage() {
   const [eixoTecnologico, setEixoTecnologico] = useState<string>('')
   const [cargaHoraria, setCargaHoraria] = useState<string>('')
 
-  // Carregar Cursos ao montar o componente
   useEffect(() => {
     fetchCursos()
   }, [])
@@ -44,9 +38,7 @@ export default function CursosPage() {
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) {
-        throw error
-      }
+      if (error) throw error
 
       if (data) {
         setCursos(data as Curso[])
@@ -72,6 +64,7 @@ export default function CursosPage() {
     setModalidade(curso.modalidade)
     setEixoTecnologico(curso.eixo_tecnologico)
     setCargaHoraria(curso.carga_horaria.toString())
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -93,7 +86,6 @@ export default function CursosPage() {
       }
 
       if (editingId) {
-        // Atualizar curso existente
         const { error } = await supabase
           .from('cursos')
           .update(payload)
@@ -101,7 +93,6 @@ export default function CursosPage() {
 
         if (error) throw error
       } else {
-        // Inserir novo curso
         const { error } = await supabase
           .from('cursos')
           .insert([payload])
@@ -134,7 +125,7 @@ export default function CursosPage() {
 
       await fetchCursos()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Erro ao excluir o curso.')
+      setErrorMsg(err.message || 'Erro ao excluir o curso. Verifique dependências ou permissões RLS.')
       setLoading(false)
     }
   }
@@ -153,8 +144,9 @@ export default function CursosPage() {
 
         {/* Mensagem de Erro */}
         {errorMsg && (
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded text-red-700 text-sm">
-            {errorMsg}
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded text-red-700 text-sm flex justify-between items-center">
+            <span>{errorMsg}</span>
+            <button onClick={() => setErrorMsg(null)} className="font-bold ml-4">✕</button>
           </div>
         )}
 
