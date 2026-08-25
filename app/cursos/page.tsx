@@ -13,6 +13,7 @@ export default function CursosPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [cursoExpandido, setCursoExpandido] = useState<string | null>(null);
+  const [deletandoId, setDeletandoId] = useState<string | null>(null);
 
   const carregarCursos = async () => {
     setLoading(true);
@@ -52,6 +53,33 @@ export default function CursosPage() {
 
   const toggleExpandir = (id: string) => {
     setCursoExpandido(cursoExpandido === id ? null : id);
+  };
+
+  const handleDeletarCurso = async (e: React.MouseEvent, id: string, nome: string) => {
+    e.stopPropagation(); // Impede que o clique abra/feche a sanfona do card
+
+    const confirmou = window.confirm(
+      `Tem certeza que deseja excluir o curso "${nome}"?\n\nEsta ação excluirá permanentemente o curso e todas as Unidades Curriculares vinculadas a ele.`
+    );
+
+    if (!confirmou) return;
+
+    try {
+      setDeletandoId(id);
+      const { error } = await supabase.from('cursos').delete().eq('id', id);
+
+      if (error) throw error;
+
+      // Atualiza o estado local removendo o curso sem precisar recarregar a tela
+      setCursos((prev) => prev.filter((curso) => curso.id !== id));
+      if (cursoExpandido === id) {
+        setCursoExpandido(null);
+      }
+    } catch (err: any) {
+      alert(`Erro ao excluir o curso: ${err.message || 'Erro desconhecido'}`);
+    } finally {
+      setDeletandoId(null);
+    }
   };
 
   return (
@@ -97,6 +125,7 @@ export default function CursosPage() {
           {cursos.map((curso) => {
             const isExpanded = cursoExpandido === curso.id;
             const qtdUCs = curso.unidades_curriculares?.length || 0;
+            const isDeletando = deletandoId === curso.id;
 
             return (
               <div
@@ -126,7 +155,19 @@ export default function CursosPage() {
                     <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
                       {qtdUCs} {qtdUCs === 1 ? 'UC' : 'UCs'}
                     </span>
-                    <span className="text-slate-400 text-sm font-bold">
+
+                    {/* Botão de Excluir */}
+                    <button
+                      type="button"
+                      disabled={isDeletando}
+                      onClick={(e) => curso.id && handleDeletarCurso(e, curso.id, curso.nome)}
+                      title="Excluir curso"
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 hover:text-red-700 transition disabled:opacity-50"
+                    >
+                      {isDeletando ? 'Excluindo...' : '🗑️ Excluir'}
+                    </button>
+
+                    <span className="text-slate-400 text-sm font-bold ml-1">
                       {isExpanded ? '▲' : '▼'}
                     </span>
                   </div>
