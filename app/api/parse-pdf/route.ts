@@ -44,17 +44,18 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
 
     const parts: any[] = [{ text: systemPrompt }];
     images.forEach((imgBase64: string) => {
+      // Remove cabeçalhos base64 se enviados do frontend
+      const cleanBase64 = imgBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
       parts.push({
         inlineData: {
           mimeType: 'image/png',
-          data: imgBase64,
+          data: cleanBase64,
         },
       });
     });
 
-    // Chamada à API Gemini 2.5 Flash na rota v1
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,8 +76,20 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
       return NextResponse.json({ error: `Erro no Gemini: ${msgErro}` }, { status: 500 });
     }
 
-    const rawJsonText = data.candidates[0].content.parts[0].text;
-    const parsedData = JSON.parse(rawJsonText);
+    let rawJsonText = data.candidates[0].content.parts[0].text;
+    
+    // Tratamento defensivo do JSON retornado pela IA
+    rawJsonText = rawJsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let parsedData;
+    try {
+      parsedData = JSON.parse(rawJsonText);
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: 'A resposta do Gemini não veio em formato JSON válido.' },
+        { status: 500 }
+      );
+    }
 
     // 1. Inserção do Curso na tabela 'cursos'
     const { data: cursoCriado, error: erroCurso } = await supabase
@@ -105,8 +118,11 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem blocos de texto adicionais:
       }));
 
       const { error: erroUC } = await supabase.from('unidades_curriculares').insert(ucsPayload);
+      
       if (erroUC) {
-        console.error('Erro ao inserir UCs:', erroUC.message);
+        // Rollback manual: Remove o curso criado se falhar em inserir as UCs
+        await supabase.from('cursos').delete().eq('id', cursoCriado.id);
+        return NextResponse.json({ error: `Erro ao salvar UCs no Supabase: ${erroUC.message}` }, { status: 500 });
       }
     }
 
