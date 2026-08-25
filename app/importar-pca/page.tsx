@@ -5,7 +5,7 @@ import { useState } from 'react';
 export default function ImportarPCAPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>('');
-  const [sucesso, setSucesso] = useState<any>(null);
+  const [resultado, setResultado] = useState<any>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   const carregarPdfJs = async () => {
@@ -32,7 +32,7 @@ export default function ImportarPCAPage() {
     const numPaginas = Math.min(pdf.numPages, 5);
 
     for (let i = 1; i <= numPaginas; i++) {
-      setStatus(`Convertendo página ${i} de ${numPaginas} em imagem...`);
+      setStatus(`Convertendo página ${i} de ${numPaginas} para imagem...`);
       const page = await pdf.getPage(i);
       const viewport = page.getViewport({ scale: 1.5 });
       
@@ -55,27 +55,27 @@ export default function ImportarPCAPage() {
     if (!file) return;
 
     setLoading(true);
-    setSucesso(null);
+    setResultado(null);
     setErro(null);
 
     try {
-      setStatus('Carregando leitor visual...');
+      setStatus('Iniciando processamento do arquivo PDF...');
       const imagensBase64 = await converterPaginasParaImagens(file);
 
-      setStatus('Extraindo dados via IA e salvando no Supabase...');
+      setStatus('Enviando para o Gemini 2.5 e salvando no Supabase...');
       
       const response = await fetch('/api/parse-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images: imagensBase64 })
+        body: JSON.stringify({ images: imagensBase64 }),
       });
 
       const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || 'Erro na importação.');
+      if (!response.ok) throw new Error(resData.error || 'Falha ao processar o arquivo.');
 
-      setSucesso(resData);
+      setResultado(resData);
     } catch (err: any) {
-      setErro(err.message || 'Falha ao importar PCA.');
+      setErro(err.message || 'Erro durante a importação do PCA.');
     } finally {
       setLoading(false);
       setStatus('');
@@ -85,18 +85,22 @@ export default function ImportarPCAPage() {
   return (
     <main className="mx-auto max-w-4xl p-6">
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-xl font-bold text-slate-900 mb-1">Alimentar Banco de Dados (PCA em PDF)</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1">
+          Importar Plano de Curso (PCA)
+        </h1>
         <p className="text-sm text-slate-500 mb-6">
-          Selecione o arquivo do Plano de Curso. O sistema extrai a Categoria, o Curso e as UCs e salva no Supabase.
+          Selecione um PDF do SENAI-PR para extrair a Categoria, Curso e Unidades Curriculares direto para o Supabase.
         </p>
 
-        <input 
-          type="file" 
-          accept="application/pdf" 
-          onChange={handleFileUpload} 
-          disabled={loading}
-          className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
-        />
+        <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center bg-slate-50/50 hover:bg-slate-50 transition">
+          <input 
+            type="file" 
+            accept="application/pdf" 
+            onChange={handleFileUpload} 
+            disabled={loading}
+            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+          />
+        </div>
         
         {loading && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
@@ -110,21 +114,40 @@ export default function ImportarPCAPage() {
           </div>
         )}
 
-        {sucesso && (
-          <div className="mt-6 rounded-lg bg-slate-50 p-4 border border-slate-200">
-            <span className="inline-block rounded bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800 mb-2">
-              ✓ Cadastrado com Sucesso no Supabase
+        {resultado && (
+          <div className="mt-6 rounded-lg bg-slate-50 p-6 border border-slate-200">
+            <span className="inline-block rounded bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 mb-4">
+              ✓ Cadastro realizado com sucesso no banco de dados
             </span>
-            <div className="grid grid-cols-2 gap-4 text-sm mt-2">
-              <div>
-                <span className="text-xs uppercase font-semibold text-slate-400 block">Categoria</span>
-                <span className="font-bold text-blue-700">{sucesso.dadosExtraidos.categoria}</span>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
+              <div className="bg-white p-3 rounded border border-slate-200">
+                <span className="text-xs font-semibold uppercase text-slate-400 block">Categoria</span>
+                <span className="font-bold text-blue-700">{resultado.dados.categoria}</span>
               </div>
-              <div>
-                <span className="text-xs uppercase font-semibold text-slate-400 block">Nome do Curso</span>
-                <span className="font-bold text-slate-900">{sucesso.dadosExtraidos.curso}</span>
+              <div className="bg-white p-3 rounded border border-slate-200">
+                <span className="text-xs font-semibold uppercase text-slate-400 block">Nome do Curso</span>
+                <span className="font-bold text-slate-900">{resultado.dados.curso}</span>
+              </div>
+              <div className="bg-white p-3 rounded border border-slate-200">
+                <span className="text-xs font-semibold uppercase text-slate-400 block">Carga Horária</span>
+                <span className="font-bold text-slate-700">{resultado.dados.carga_horaria_total}</span>
               </div>
             </div>
+
+            {resultado.dados.unidades_curriculares?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2">Unidades Curriculares Extraídas:</h3>
+                <ul className="divide-y divide-slate-200 bg-white rounded border border-slate-200 text-sm">
+                  {resultado.dados.unidades_curriculares.map((uc: any, idx: number) => (
+                    <li key={idx} className="p-3 flex justify-between items-center">
+                      <span className="font-medium text-slate-800">{uc.numero}. {uc.nome}</span>
+                      <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">{uc.carga_horaria}h</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
