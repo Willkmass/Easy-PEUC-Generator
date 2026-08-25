@@ -48,7 +48,7 @@ export default function CriarPeucPage() {
         .insert({
           curso_id: formData.cursoId,
           unidade_curricular_id: formData.unidadeCurricularId,
-          docente_id: formData.docenteId,
+          docente_id: formData.docenteId || null,
           tipo_situacao_aprendizagem: formData.tipoSituacaoAprendizagem,
           integra_outra_uc: formData.integraOutraUC,
           contextualizacao: formData.contextualizacao,
@@ -61,52 +61,65 @@ export default function CriarPeucPage() {
 
       if (peucError) throw peucError;
 
-      // 2. Salvar Capacidades Selecionadas
+      // 2. Salvar Capacidades Selecionadas (Em Lote)
       if (formData.capacidadesSelecionadasIds?.length) {
-        const caps = formData.capacidadesSelecionadasIds.map((capId) => ({
+        const caps = formData.capacidadesSelecionadasIds.map((cap) => ({
           peuc_id: peuc.id,
-          capacidade_id: capId,
+          capacidade_id: typeof cap === "object" ? (cap as any).id : cap,
         }));
-        await supabase.from("peuc_capacidades").insert(caps);
+        const { error: capErr } = await supabase.from("peuc_capacidades").insert(caps);
+        if (capErr) console.error("Erro ao salvar capacidades:", capErr);
       }
 
-      // 3. Salvar Conhecimentos Selecionados
+      // 3. Salvar Conhecimentos Selecionados (Em Lote)
       if (formData.conhecimentosSelecionadosIds?.length) {
-        const cons = formData.conhecimentosSelecionadosIds.map((conId) => ({
+        const cons = formData.conhecimentosSelecionadosIds.map((con) => ({
           peuc_id: peuc.id,
-          conhecimento_id: conId,
+          conhecimento_id: typeof con === "object" ? (con as any).id : con,
         }));
-        await supabase.from("peuc_conhecimentos").insert(cons);
+        const { error: conErr } = await supabase.from("peuc_conhecimentos").insert(cons);
+        if (conErr) console.error("Erro ao salvar conhecimentos:", conErr);
       }
 
-      // 4. Salvar Cronograma (Planos de Aula)
+      // 4. Salvar Cronograma (Processamento Seguro em Lote sem perda de linhas)
       if (formData.cronograma?.length) {
-        for (const item of formData.cronograma) {
-          const { data: plano, error: planoErr } = await supabase
-            .from("planos_aula")
-            .insert({
-              peuc_id: peuc.id,
-              numero_aulas: item.numeroAulas,
-              estrategia_ensino: item.estrategiaEnsino,
-              ambientes_recursos: item.ambientesERecursos,
-            })
-            .select()
-            .single();
+        await Promise.all(
+          formData.cronograma.map(async (item) => {
+            const { data: plano, error: planoErr } = await supabase
+              .from("planos_aula")
+              .insert({
+                peuc_id: peuc.id,
+                numero_aulas: item.numeroAulas,
+                estrategia_ensino: item.estrategiaEnsino,
+                ambientes_recursos: item.ambientesERecursos,
+              })
+              .select()
+              .single();
 
-          if (planoErr) throw planoErr;
+            if (planoErr) throw planoErr;
 
-          // Relacionar Capacidades/Conhecimentos/Critérios da Aula
-          if (item.capacidadesIds?.length) {
-            await supabase.from("plano_aula_capacidades").insert(
-              item.capacidadesIds.map((cId) => ({ plano_aula_id: plano.id, capacidade_id: cId }))
-            );
-          }
-          if (item.conhecimentosIds?.length) {
-            await supabase.from("plano_aula_conhecimentos").insert(
-              item.conhecimentosIds.map((cId) => ({ plano_aula_id: plano.id, conhecimento_id: cId }))
-            );
-          }
-        }
+            // Insere relacionamentos das aulas sem interromper o laço
+            const promessasAula = [];
+
+            if (item.capacidadesIds?.length) {
+              const capsAula = item.capacidadesIds.map((c) => ({
+                plano_aula_id: plano.id,
+                capacidade_id: typeof c === "object" ? (c as any).id : c,
+              }));
+              promessasAula.push(supabase.from("plano_aula_capacidades").insert(capsAula));
+            }
+
+            if (item.conhecimentosIds?.length) {
+              const consAula = item.conhecimentosIds.map((c) => ({
+                plano_aula_id: plano.id,
+                conhecimento_id: typeof c === "object" ? (c as any).id : c,
+              }));
+              promessasAula.push(supabase.from("plano_aula_conhecimentos").insert(consAula));
+            }
+
+            await Promise.all(promessasAula);
+          })
+        );
       }
 
       alert("PEUC cadastrada com sucesso!");
@@ -128,13 +141,9 @@ export default function CriarPeucPage() {
         </p>
       </div>
 
-      {/* Componentes com Estados Conectados */}
       <DadosGeraisPEUC data={formData} onChange={handleFieldChange} />
-      
       <CapacidadesPEUC data={formData} onChange={handleFieldChange} />
-
       <SituacaoAprendizagemPEUC data={formData} onChange={handleFieldChange} />
-
       <PlanoAulaPEUC data={formData} onChange={handleFieldChange} />
 
       <div className="flex justify-end pt-4">
