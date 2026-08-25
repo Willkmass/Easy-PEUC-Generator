@@ -8,7 +8,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Texto não fornecido' }, { status: 400 });
     }
 
-    const systemPrompt = `Você é um parser especializado em Planos de Curso (PCA). 
+    const systemPrompt = `Você é um parser especializado em Planos de Curso de Aprendizagem (PCA) do SENAI.
 Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON com a seguinte estrutura:
 {
   "curso": "nome do curso",
@@ -24,7 +24,6 @@ Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON com 
   ]
 }`;
 
-    // Exemplo chamando a API do Gemini
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -51,6 +50,6 @@ Extraia as informações do texto e responda EXCLUSIVAMENTE em formato JSON com 
     return NextResponse.json(parsedData);
   } catch (error) {
     console.error('Erro na API:', error);
-    return NextResponse.json({ error: 'Falha ao estruturar os dados' }, { status: 500 });
+    return NextResponse.json({ error: 'Falha ao processar o PDF com a IA' }, { status: 500 });
   }
 }
