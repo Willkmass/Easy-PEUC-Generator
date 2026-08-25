@@ -36,16 +36,23 @@ export default function ImportarPCAPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-8">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-sm font-semibold text-blue-600 hover:underline">
-          ← Voltar para a Dashboard
-        </Link>
-        <h1 className="mt-2 mb-6 text-3xl font-bold text-slate-900">
-          Importar Plano de Curso (PCA)
-        </h1>
+        {/* Cabeçalho da Marca */}
+        <div className="mb-6 flex items-center justify-between border-b border-slate-200 pb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Easy PEUC Generator</h1>
+            <p className="text-xs text-slate-500">Módulo de Extração de PCA via IA</p>
+          </div>
+          <Link href="/" className="text-sm font-semibold text-blue-600 hover:underline">
+            ← Voltar para a Dashboard
+          </Link>
+        </div>
 
         <div className="rounded-lg bg-white p-6 shadow">
-          <label className="block mb-2 font-medium text-slate-700">
-            Selecione o arquivo PDF do PCA:
+          <h2 className="mb-4 text-xl font-bold text-slate-800">
+            Importar Plano de Curso (PCA)
+          </h2>
+          <label className="block mb-2 text-sm font-medium text-slate-700">
+            Selecione o arquivo PDF oficial do PCA:
           </label>
           <input 
             type="file" 
@@ -63,7 +70,7 @@ export default function ImportarPCAPage() {
 
           {resultadoJson && (
             <div className="mt-6">
-              <h2 className="text-lg font-bold text-slate-800 mb-2">Dados Extraídos (JSON):</h2>
+              <h3 className="text-md font-bold text-slate-800 mb-2">Dados Extraídos (JSON):</h3>
               <pre className="bg-slate-900 text-green-400 p-4 rounded-lg overflow-x-auto text-sm max-h-[500px]">
                 {JSON.stringify(resultadoJson, null, 2)}
               </pre>
