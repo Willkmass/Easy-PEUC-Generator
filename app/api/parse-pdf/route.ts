@@ -17,6 +17,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Prompt ajustado para obrigar a extração de UCs mesmo que não tenham capacidades/conhecimentos visíveis
     const systemPrompt = `Você é um especialista em análise pedagógica do SENAI-PR.
 Sua missão é extrair com precisão os dados do Plano de Curso (PCA) fornecido em imagens.
 
@@ -24,12 +25,12 @@ REGRAS ESTRITAS DE EXTRAÇÃO:
 1. "categoria": Apenas a modalidade pedagógica (ex: "Aprendizagem Industrial", "Habilitação Técnica").
 2. "curso": APENAS o nome oficial do curso/ocupação (ex: "Assistente Administrativo").
 3. "carga_horaria_total": Formato "XXXh" (ex: "600h").
-4. "unidades_curriculares": Extraia TODAS as Unidades Curriculares (UC1 a UC12) presentes na Matriz Curricular e no detalhamento das páginas.`;
+4. "unidades_curriculares": Extraia TODAS as Unidades Curriculares (UC1, UC2, etc.) presentes na Matriz Curricular e nas páginas do documento.
+REGRA CRÍTICA PARA UCs: Se capacidades ou conhecimentos não estiverem descritos para uma UC, retorne os campos como listas vazias []. NUNCA deixe de incluir uma UC por falta de detalhamento.`;
 
     const parts: any[] = [{ text: systemPrompt }];
-    
+
     images.forEach((imgBase64: string) => {
-      // Identifica dinamicamente o MimeType correto da imagem
       const mimeMatch = imgBase64.match(/^data:(image\/\w+);base64,/);
       const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
       const cleanBase64 = imgBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -42,7 +43,6 @@ REGRAS ESTRITAS DE EXTRAÇÃO:
       });
     });
 
-    // Requisição utilizando Esquema Estruturado (Structured Outputs)
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
       {
@@ -52,6 +52,7 @@ REGRAS ESTRITAS DE EXTRAÇÃO:
           contents: [{ role: 'user', parts }],
           generationConfig: {
             responseMimeType: 'application/json',
+            maxOutputTokens: 8192, // Aumentado para não cortar o JSON no meio quando o PDF for longo
             responseSchema: {
               type: 'OBJECT',
               properties: {
@@ -66,10 +67,16 @@ REGRAS ESTRITAS DE EXTRAÇÃO:
                       numero: { type: 'INTEGER' },
                       nome: { type: 'STRING' },
                       carga_horaria: { type: 'INTEGER' },
-                      capacidades: { type: 'ARRAY', items: { type: 'STRING' } },
-                      conhecimentos: { type: 'ARRAY', items: { type: 'STRING' } },
+                      capacidades: { 
+                        type: 'ARRAY', 
+                        items: { type: 'STRING' }
+                      },
+                      conhecimentos: { 
+                        type: 'ARRAY', 
+                        items: { type: 'STRING' }
+                      },
                     },
-                    required: ['numero', 'nome', 'carga_horaria'],
+                    required: ['numero', 'nome', 'carga_horaria', 'capacidades', 'conhecimentos'],
                   },
                 },
               },
