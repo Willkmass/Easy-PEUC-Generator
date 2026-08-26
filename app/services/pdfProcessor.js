@@ -30,8 +30,9 @@ const schemaPEUC = {
   required: ["nomeCurso", "unidadesCurriculares"]
 };
 
+// Modelo atualizado para a versão estável
 const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.5-flash",
   generationConfig: {
     responseMimeType: "application/json",
     responseSchema: schemaPEUC
@@ -47,7 +48,6 @@ export async function processarPdfsMultiplos(buffers) {
   for (let index = 0; index < buffers.length; index++) {
     const item = buffers[index];
 
-    // Envia o PDF via Base64 diretamente em memória para a API do Gemini
     const fileData = {
       inlineData: {
         data: item.buffer.toString('base64'),
