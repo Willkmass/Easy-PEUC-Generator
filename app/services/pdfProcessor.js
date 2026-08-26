@@ -1,23 +1,28 @@
-import fs from 'fs';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { GoogleAIFileManager } from '@google/generative-ai/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
-// 1. Schema para extrair a lista inicial de UCs (leve e sem risco de truncar)
-const schemaMatriz = {
+const schemaPEUC = {
   type: SchemaType.OBJECT,
   properties: {
     nomeCurso: { type: SchemaType.STRING },
-    cargaHorariaTotal: { type: SchemaType.STRING },
     unidadesCurriculares: {
       type: SchemaType.ARRAY,
       items: {
         type: SchemaType.OBJECT,
         properties: {
           nomeUc: { type: SchemaType.STRING },
-          cargaHoraria: { type: SchemaType.STRING }
+          cargaHoraria: { type: SchemaType.STRING },
+          capacidades: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING }
+          },
+          conhecimentos: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING }
+          }
         },
         required: ["nomeUc"]
       }
@@ -26,99 +31,77 @@ const schemaMatriz = {
   required: ["nomeCurso", "unidadesCurriculares"]
 };
 
-// 2. Schema para extrair o detalhamento completo de UMA UC por vez
-const schemaDetalhesUC = {
-  type: SchemaType.OBJECT,
-  properties: {
-    capacidades: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING }
-    },
-    conhecimentos: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING }
-    }
-  },
-  required: ["capacidades", "conhecimentos"]
-};
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  generationConfig: {
+    responseMimeType: "application/json",
+    responseSchema: schemaPEUC
+  }
+});
 
-export async function processarPdfEmLotes(caminhoPdf) {
-  console.log("[PEUC] Fazendo upload do PDF nativo para o Gemini...");
-  const uploadResult = await fileManager.uploadFile(caminhoPdf, {
-    mimeType: "application/pdf",
-    displayName: "PCA_Document",
-  });
+// Aceita um array com os caminhos dos PDFs (ex: [parte1.pdf, parte2.pdf])
+export async function processarPdfsMultiplos(listaCaminhosPdfs) {
+  const resultadoConsolidado = {
+    nomeCurso: "",
+    unidadesCurriculares: []
+  };
 
-  try {
-    // modelo configurado para a Etapa 1
-    const modelMatriz = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: schemaMatriz
-      }
+  for (let index = 0; index < listaCaminhosPdfs.length; index++) {
+    const caminho = listaCaminhosPdfs[index];
+    console.log(`[PEUC] Processando arquivo ${index + 1}/${listaCaminhosPdfs.length}: ${caminho}`);
+
+    const uploadResult = await fileManager.uploadFile(caminho, {
+      mimeType: "application/pdf",
+      displayName: `PCA_Parte_${index + 1}`
     });
 
-    console.log("[PEUC] Etapa 1: Lendo Matriz Curricular do Curso...");
-    const promptMatriz = `
-      Analise o PDF do PCA do SENAI anexado.
-      Extraia o nome do curso e a lista completa com TODAS as Unidades Curriculares (UCs) e suas cargas horárias.
-      Ignore introduções, capa e sumário genérico.
-    `;
-
-    const resMatriz = await modelMatriz.generateContent([
-      uploadResult.file,
-      { text: promptMatriz }
-    ]);
-
-    const resultadoFinal = JSON.parse(resMatriz.response.text());
-
-    // Modelo configurado para a Etapa 2
-    const modelDetalhes = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: schemaDetalhesUC
-      }
-    });
-
-    console.log(`[PEUC] Etapa 2: Mapeando detalhamento de ${resultadoFinal.unidadesCurriculares.length} UCs...`);
-
-    // Processa os detalhes de cada UC individualmente para evitar truncar o JSON
-    for (let i = 0; i < resultadoFinal.unidadesCurriculares.length; i++) {
-      const uc = resultadoFinal.unidadesCurriculares[i];
-      console.log(`[PEUC] Processando detalhes da UC ${i + 1}/${resultadoFinal.unidadesCurriculares.length}: ${uc.nomeUc}`);
-
-      const promptDetalhes = `
-        No PDF anexado, localize a seção de detalhamento da Unidade Curricular: "${uc.nomeUc}".
-        Extraia com precisão:
-        1. Todas as Capacidades (técnicas e socioemocionais).
-        2. Todos os Conhecimentos / Conteúdos Formativos listados para esta UC.
+    try {
+      const prompt = `
+        Analise o trecho/parte em anexo do Plano de Curso (PCA) do SENAI.
+        Extraia o Nome do Curso e todas as Unidades Curriculares (UCs) presentes neste arquivo específico.
+        Para cada UC, liste suas Capacidades e Conhecimentos.
       `;
 
-      try {
-        const resDetalhes = await modelDetalhes.generateContent([
-          uploadResult.file,
-          { text: promptDetalhes }
-        ]);
+      const result = await model.generateContent([
+        uploadResult.file,
+        { text: prompt }
+      ]);
 
-        const detalhesParsed = JSON.parse(resDetalhes.response.text());
-        uc.capacidades = detalhesParsed.capacidades || [];
-        uc.conhecimentos = detalhesParsed.conhecimentos || [];
-      } catch (errUC) {
-        console.warn(`[PEUC] Falha ao extrair detalhes da UC "${uc.nomeUc}":`, errUC.message);
-        uc.capacidades = [];
-        uc.conhecimentos = [];
+      const parcial = JSON.parse(result.response.text());
+
+      // Define o curso se ainda não capturado
+      if (parcial.nomeCurso && !resultadoConsolidado.nomeCurso) {
+        resultadoConsolidado.nomeCurso = parcial.nomeCurso;
       }
+
+      // Merge sem duplicidade no Node.js
+      if (parcial.unidadesCurriculares?.length > 0) {
+        for (const ucNova of parcial.unidadesCurriculares) {
+          if (!ucNova.nomeUc) continue;
+
+          const ucExistente = resultadoConsolidado.unidadesCurriculares.find(
+            u => u.nomeUc.toLowerCase().trim() === ucNova.nomeUc.toLowerCase().trim()
+          );
+
+          if (ucExistente) {
+            if (ucNova.capacidades) {
+              ucExistente.capacidades = [...new Set([...(ucExistente.capacidades || []), ...ucNova.capacidades])];
+            }
+            if (ucNova.conhecimentos) {
+              ucExistente.conhecimentos = [...new Set([...(ucExistente.conhecimentos || []), ...ucNova.conhecimentos])];
+            }
+          } else {
+            resultadoConsolidado.unidadesCurriculares.push(ucNova);
+          }
+        }
+      }
+
+      await fileManager.deleteFile(uploadResult.file.name);
+    } catch (err) {
+      try { await fileManager.deleteFile(uploadResult.file.name); } catch (_) {}
+      console.warn(`[PEUC] Erro na parte ${index + 1}:`, err.message);
     }
-
-    // Deleta o arquivo temporário dos servidores do Google
-    await fileManager.deleteFile(uploadResult.file.name);
-    return resultadoFinal;
-
-  } catch (error) {
-    try { await fileManager.deleteFile(uploadResult.file.name); } catch (_) {}
-    console.error("[PEUC] Erro no processamento de PDFs:", error);
-    throw error;
   }
+
+  return resultadoConsolidado;
 }
