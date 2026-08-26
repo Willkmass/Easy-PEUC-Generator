@@ -1,8 +1,7 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import { GoogleAIFileManager } from '@google/generative-ai/server';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
+const apiKey = process.env.GEMINI_API_KEY || '';
+const genAI = new GoogleGenerativeAI(apiKey);
 
 const schemaPEUC = {
   type: SchemaType.OBJECT,
@@ -39,20 +38,22 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-export async function processarPdfsMultiplos(listaCaminhosPdfs) {
+export async function processarPdfsMultiplos(buffers) {
   const resultadoConsolidado = {
     nomeCurso: "",
     unidadesCurriculares: []
   };
 
-  for (let index = 0; index < listaCaminhosPdfs.length; index++) {
-    const caminho = listaCaminhosPdfs[index];
-    console.log(`[PEUC] Processando arquivo ${index + 1}/${listaCaminhosPdfs.length}: ${caminho}`);
+  for (let index = 0; index < buffers.length; index++) {
+    const item = buffers[index];
 
-    const uploadResult = await fileManager.uploadFile(caminho, {
-      mimeType: "application/pdf",
-      displayName: `PCA_Parte_${index + 1}`
-    });
+    // Envia o PDF via Base64 diretamente em memória para a API do Gemini
+    const fileData = {
+      inlineData: {
+        data: item.buffer.toString('base64'),
+        mimeType: item.mimeType
+      }
+    };
 
     try {
       const prompt = `
@@ -63,7 +64,7 @@ export async function processarPdfsMultiplos(listaCaminhosPdfs) {
       `;
 
       const result = await model.generateContent([
-        uploadResult.file,
+        fileData,
         { text: prompt }
       ]);
 
@@ -96,11 +97,8 @@ export async function processarPdfsMultiplos(listaCaminhosPdfs) {
           }
         }
       }
-
-      await fileManager.deleteFile(uploadResult.file.name);
     } catch (err) {
-      try { await fileManager.deleteFile(uploadResult.file.name); } catch (_) {}
-      console.warn(`[PEUC] Erro na parte ${index + 1}:`, err.message);
+      console.warn(`[PEUC] Erro no processamento da parte ${index + 1}:`, err?.message);
     }
   }
 
