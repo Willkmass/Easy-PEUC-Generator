@@ -15,7 +15,6 @@ export async function POST(request) {
 
     const caminhosTemporarios = [];
 
-    // Salva os arquivos recebidos temporariamente na máquina para a Gemini API ler
     for (const file of files) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -25,10 +24,8 @@ export async function POST(request) {
       caminhosTemporarios.push(tempPath);
     }
 
-    // Processa os PDFs usando a biblioteca do Gemini
     const resultado = await processarPdfsMultiplos(caminhosTemporarios);
 
-    // Limpa os arquivos temporários do servidor
     for (const tempPath of caminhosTemporarios) {
       try { await fs.promises.unlink(tempPath); } catch (_) {}
     }
