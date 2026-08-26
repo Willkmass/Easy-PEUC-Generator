@@ -5,7 +5,8 @@ import { GoogleAIFileManager } from '@google/generative-ai/server';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
-const schemaPEUC = {
+// 1. Schema para extrair a lista inicial de UCs (leve e sem risco de truncar)
+const schemaMatriz = {
   type: SchemaType.OBJECT,
   properties: {
     nomeCurso: { type: SchemaType.STRING },
@@ -16,15 +17,7 @@ const schemaPEUC = {
         type: SchemaType.OBJECT,
         properties: {
           nomeUc: { type: SchemaType.STRING },
-          cargaHoraria: { type: SchemaType.STRING },
-          capacidades: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING }
-          },
-          conhecimentos: {
-            type: SchemaType.ARRAY,
-            items: { type: SchemaType.STRING }
-          }
+          cargaHoraria: { type: SchemaType.STRING }
         },
         required: ["nomeUc"]
       }
@@ -33,63 +26,99 @@ const schemaPEUC = {
   required: ["nomeCurso", "unidadesCurriculares"]
 };
 
-const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
-  generationConfig: {
-    responseMimeType: "application/json",
-    responseSchema: schemaPEUC
-  }
-});
+// 2. Schema para extrair o detalhamento completo de UMA UC por vez
+const schemaDetalhesUC = {
+  type: SchemaType.OBJECT,
+  properties: {
+    capacidades: {
+      type: SchemaType.ARRAY,
+      items: { type: SchemaType.STRING }
+    },
+    conhecimentos: {
+      type: SchemaType.ARRAY,
+      items: { type: SchemaType.STRING }
+    }
+  },
+  required: ["capacidades", "conhecimentos"]
+};
 
 export async function processarPdfEmLotes(caminhoPdf) {
-  console.log("[PEUC] Fazendo upload do PDF nativo para o Gemini File API...");
-  
-  // 1. Envia o arquivo PDF completo direto para a API do Google (sem depender de libs locais de texto)
+  console.log("[PEUC] Fazendo upload do PDF nativo para o Gemini...");
   const uploadResult = await fileManager.uploadFile(caminhoPdf, {
     mimeType: "application/pdf",
     displayName: "PCA_Document",
   });
 
-  console.log(`[PEUC] Arquivo enviado com sucesso. URI: ${uploadResult.file.uri}`);
-
-  const prompt = `
-    Você é o extrator especializado de Planos de Curso (PCA) do SENAI para o sistema PEUC.
-    Analise o documento PDF completo em anexo.
-
-    REGRAS RÍGIDAS DE EXTRAÇÃO:
-    1. Localize a Matriz Curricular e extraia TODAS as Unidades Curriculares (UCs) reais.
-    2. NUNCA gere nomes genéricos como "Unidade Curricular 1", "UC 1" ou "Unidade 1" se o nome exato não existir.
-    3. Para cada UC, leia as tabelas de detalhamento e extraia:
-       - Carga Horária (ex: "80h", "160h").
-       - Lista exata das Capacidades (Técnicas e Socioemocionais).
-       - Lista exata dos Conhecimentos / Conteúdo Formativo.
-    4. Se o documento contiver 12 UCs, retorne exatamente as 12 UCs preenchidas com seus respectivos conhecimentos.
-  `;
-
   try {
-    console.log("[PEUC] Processando estrutura pedagógica e tabelas...");
-    const result = await model.generateContent([
-      uploadResult.file,
-      { text: prompt }
-    ]);
-
-    const resultadoJson = JSON.parse(result.response.text());
-
-    // Limpeza de segurança no backend para garantir que lixo não vá pro Supabase
-    resultadoJson.unidadesCurriculares = resultadoJson.unidadesCurriculares.filter(uc => {
-      const nomeValido = uc.nomeUc && !/^unidade\s+curricular\s+\d+$/i.test(uc.nomeUc.trim());
-      return nomeValido;
+    // modelo configurado para a Etapa 1
+    const modelMatriz = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: schemaMatriz
+      }
     });
 
-    // 2. Limpa o arquivo dos servidores do Google após o processamento
-    await fileManager.deleteFile(uploadResult.file.name);
+    console.log("[PEUC] Etapa 1: Lendo Matriz Curricular do Curso...");
+    const promptMatriz = `
+      Analise o PDF do PCA do SENAI anexado.
+      Extraia o nome do curso e a lista completa com TODAS as Unidades Curriculares (UCs) e suas cargas horárias.
+      Ignore introduções, capa e sumário genérico.
+    `;
 
-    return resultadoJson;
+    const resMatriz = await modelMatriz.generateContent([
+      uploadResult.file,
+      { text: promptMatriz }
+    ]);
+
+    const resultadoFinal = JSON.parse(resMatriz.response.text());
+
+    // Modelo configurado para a Etapa 2
+    const modelDetalhes = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: schemaDetalhesUC
+      }
+    });
+
+    console.log(`[PEUC] Etapa 2: Mapeando detalhamento de ${resultadoFinal.unidadesCurriculares.length} UCs...`);
+
+    // Processa os detalhes de cada UC individualmente para evitar truncar o JSON
+    for (let i = 0; i < resultadoFinal.unidadesCurriculares.length; i++) {
+      const uc = resultadoFinal.unidadesCurriculares[i];
+      console.log(`[PEUC] Processando detalhes da UC ${i + 1}/${resultadoFinal.unidadesCurriculares.length}: ${uc.nomeUc}`);
+
+      const promptDetalhes = `
+        No PDF anexado, localize a seção de detalhamento da Unidade Curricular: "${uc.nomeUc}".
+        Extraia com precisão:
+        1. Todas as Capacidades (técnicas e socioemocionais).
+        2. Todos os Conhecimentos / Conteúdos Formativos listados para esta UC.
+      `;
+
+      try {
+        const resDetalhes = await modelDetalhes.generateContent([
+          uploadResult.file,
+          { text: promptDetalhes }
+        ]);
+
+        const detalhesParsed = JSON.parse(resDetalhes.response.text());
+        uc.capacidades = detalhesParsed.capacidades || [];
+        uc.conhecimentos = detalhesParsed.conhecimentos || [];
+      } catch (errUC) {
+        console.warn(`[PEUC] Falha ao extrair detalhes da UC "${uc.nomeUc}":`, errUC.message);
+        uc.capacidades = [];
+        uc.conhecimentos = [];
+      }
+    }
+
+    // Deleta o arquivo temporário dos servidores do Google
+    await fileManager.deleteFile(uploadResult.file.name);
+    return resultadoFinal;
 
   } catch (error) {
-    console.error("[PEUC] Erro fatal no processamento nativo:", error);
-    // Garante limpeza do arquivo em caso de erro
     try { await fileManager.deleteFile(uploadResult.file.name); } catch (_) {}
+    console.error("[PEUC] Erro no processamento de PDFs:", error);
     throw error;
   }
 }
