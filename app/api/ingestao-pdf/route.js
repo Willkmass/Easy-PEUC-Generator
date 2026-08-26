@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Apenas modelos estáveis da família 2.x (sem 1.5)
-const MODELOS_2X = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
+// Lista sequencial com as versões atuais e ativas da API
+const MODELOS_ATIVOS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-2.5-flash'
 ];
 
 export async function POST(req) {
@@ -73,15 +74,16 @@ export async function POST(req) {
     let responseText = null;
     let ultimoErro = null;
 
-    // Tenta os modelos da série 2.x sequencialmente
-    for (const nomeModelo of MODELOS_2X) {
+    // Tenta os modelos da lista sequencialmente até obter resposta com sucesso
+    for (const nomeModelo of MODELOS_ATIVOS) {
       try {
         const model = genAI.getGenerativeModel({ model: nomeModelo });
         const result = await model.generateContent([promptText, ...contentsParts]);
         responseText = result.response.text();
 
         if (responseText) {
-          break; // Sucesso com o modelo 2.x
+          console.log(`[Gemini Ingestion] Processado com sucesso no modelo: ${nomeModelo}`);
+          break;
         }
       } catch (err) {
         console.warn(`[Gemini Ingestion] Falha no modelo ${nomeModelo}:`, err?.message || err);
@@ -90,7 +92,7 @@ export async function POST(req) {
     }
 
     if (!responseText) {
-      throw ultimoErro || new Error('Nenhum dos modelos 2.x respondeu à requisição.');
+      throw ultimoErro || new Error('Nenhum dos modelos disponíveis respondeu à requisição.');
     }
 
     const cleanJson = responseText
