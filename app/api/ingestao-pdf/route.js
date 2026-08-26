@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Apenas modelos estáveis da família 2.x (sem 1.5)
+const MODELOS_2X = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+];
+
 export async function POST(req) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -42,8 +48,6 @@ export async function POST(req) {
       });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
-
     const promptText = `
     Analise o documento fornecido (que pode ser um Plano de Curso - PCA ou uma parte fatiada dele).
     Extraia as informações estruturadas RIGOROSAMENTE na forma de um JSON.
@@ -66,21 +70,28 @@ export async function POST(req) {
     IMPORTANTE: Retorne APENAS o JSON puro, sem blocos de texto ou marcações de código como \`\`\`json.
     `;
 
-    let result;
-    try {
-      // Primeira tentativa de geração
-      result = await model.generateContent([promptText, ...contentsParts]);
-    } catch (apiErr) {
-      // Se der 503 (instabilidade momentânea do servidor do Google), tenta novamente em 2 segundos
-      if (apiErr?.message?.includes('503') || apiErr?.status === 503) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        result = await model.generateContent([promptText, ...contentsParts]);
-      } else {
-        throw apiErr;
+    let responseText = null;
+    let ultimoErro = null;
+
+    // Tenta os modelos da série 2.x sequencialmente
+    for (const nomeModelo of MODELOS_2X) {
+      try {
+        const model = genAI.getGenerativeModel({ model: nomeModelo });
+        const result = await model.generateContent([promptText, ...contentsParts]);
+        responseText = result.response.text();
+
+        if (responseText) {
+          break; // Sucesso com o modelo 2.x
+        }
+      } catch (err) {
+        console.warn(`[Gemini Ingestion] Falha no modelo ${nomeModelo}:`, err?.message || err);
+        ultimoErro = err;
       }
     }
 
-    const responseText = result.response.text();
+    if (!responseText) {
+      throw ultimoErro || new Error('Nenhum dos modelos 2.x respondeu à requisição.');
+    }
 
     const cleanJson = responseText
       .replace(/```json/g, '')
