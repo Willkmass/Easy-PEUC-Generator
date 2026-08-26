@@ -39,7 +39,6 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-// Aceita um array com os caminhos dos PDFs (ex: [parte1.pdf, parte2.pdf])
 export async function processarPdfsMultiplos(listaCaminhosPdfs) {
   const resultadoConsolidado = {
     nomeCurso: "",
@@ -57,9 +56,10 @@ export async function processarPdfsMultiplos(listaCaminhosPdfs) {
 
     try {
       const prompt = `
-        Analise o trecho/parte em anexo do Plano de Curso (PCA) do SENAI.
-        Extraia o Nome do Curso e todas as Unidades Curriculares (UCs) presentes neste arquivo específico.
-        Para cada UC, liste suas Capacidades e Conhecimentos.
+        Analise a parte em anexo do Plano de Curso (PCA) do SENAI.
+        Extraia o Nome do Curso e todas as Unidades Curriculares (UCs) presentes neste trecho específico.
+        Para cada UC, extraia com precisão suas Capacidades e Conhecimentos/Conteúdos Formativos.
+        NUNCA gere nomes genéricos fictícios como "Unidade Curricular 1".
       `;
 
       const result = await model.generateContent([
@@ -69,15 +69,13 @@ export async function processarPdfsMultiplos(listaCaminhosPdfs) {
 
       const parcial = JSON.parse(result.response.text());
 
-      // Define o curso se ainda não capturado
       if (parcial.nomeCurso && !resultadoConsolidado.nomeCurso) {
         resultadoConsolidado.nomeCurso = parcial.nomeCurso;
       }
 
-      // Merge sem duplicidade no Node.js
       if (parcial.unidadesCurriculares?.length > 0) {
         for (const ucNova of parcial.unidadesCurriculares) {
-          if (!ucNova.nomeUc) continue;
+          if (!ucNova.nomeUc || /^unidade\s+curricular\s+\d+$/i.test(ucNova.nomeUc.trim())) continue;
 
           const ucExistente = resultadoConsolidado.unidadesCurriculares.find(
             u => u.nomeUc.toLowerCase().trim() === ucNova.nomeUc.toLowerCase().trim()
@@ -89,6 +87,9 @@ export async function processarPdfsMultiplos(listaCaminhosPdfs) {
             }
             if (ucNova.conhecimentos) {
               ucExistente.conhecimentos = [...new Set([...(ucExistente.conhecimentos || []), ...ucNova.conhecimentos])];
+            }
+            if (ucNova.cargaHoraria && !ucExistente.cargaHoraria) {
+              ucExistente.cargaHoraria = ucNova.cargaHoraria;
             }
           } else {
             resultadoConsolidado.unidadesCurriculares.push(ucNova);
