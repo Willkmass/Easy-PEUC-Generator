@@ -1,10 +1,9 @@
 import fs from 'fs';
-import pdfParse from 'pdf-parse';
+import PDFParser from 'pdf2json';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Schema simplificado para extrair APENAS o contéudo do bloco atual (sem retransmitir o histórico)
 const schemaBloco = {
   type: SchemaType.OBJECT,
   properties: {
@@ -39,56 +38,62 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-export async function processarPdfEmLotes(caminhoPdf, paginasPorBloco = 8) {
-  const dataBuffer = fs.readFileSync(caminhoPdf);
-  const data = await pdfParse(dataBuffer);
-  
-  const totalPaginas = data.numpages;
-  const linhasTexto = data.text.split('\n');
-  const linhasPorBloco = Math.ceil(linhasTexto.length / Math.ceil(totalPaginas / paginasPorBloco));
+// Função para extrair texto preservando layout de tabelas
+function extrairTextoPdf(caminhoPdf) {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PDFParser(null, 1);
+    pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
+    pdfParser.on("pdfParser_dataReady", () => {
+      resolve(pdfParser.getRawTextContent());
+    });
+    pdfParser.loadPDF(caminhoPdf);
+  });
+}
+
+export async function processarPdfEmLotes(caminhoPdf, tamanhoFatimoLinhas = 150) {
+  // 1. Extração robusta do texto do PDF
+  const textoBruto = await extrairTextoPdf(caminhoPdf);
+  const linhasTexto = textoBruto.split('\n');
   
   const resultadoConsolidado = {
     curso: "",
     unidadesCurriculares: []
   };
 
-  for (let i = 0; i < linhasTexto.length; i += linhasPorBloco) {
-    const blocoTexto = linhasTexto.slice(i, i + linhasPorBloco).join('\n');
-    
+  // 2. Fatiamento por volume de linhas
+  for (let i = 0; i < linhasTexto.length; i += tamanhoFatimoLinhas) {
+    const blocoTexto = linhasTexto.slice(i, i + tamanhoFatimoLinhas).join('\n');
     if (!blocoTexto.trim()) continue;
 
     const prompt = `
-      Você é o motor de extração de dados do sistema PEUC.
-      Analise EXCLUSIVAMENTE o trecho abaixo e extraia as informações encontradas:
+      Você é o motor de ingestão do banco do PEUC.
+      Extraia estritamente os dados presentes no trecho a seguir.
+      ATENÇÃO: Não invente nomes genéricos como "Unidade Curricular 1" se o nome real da UC não estiver explícito.
 
       TRECHO A ANALISAR:
       """
       ${blocoTexto}
       """
-
-      INSTRUÇÕES:
-      1. Extraia o nome do curso caso apareça neste trecho.
-      2. Mapeie todas as Unidades Curriculares (UCs), suas cargas horárias, capacidades e conhecimentos presentes no trecho.
     `;
 
     try {
       const result = await model.generateContent(prompt);
       const blocoExtraido = JSON.parse(result.response.text());
 
-      // 1. Atualiza nome do curso se encontrado
       if (blocoExtraido.nomeCurso && !resultadoConsolidado.curso) {
         resultadoConsolidado.curso = blocoExtraido.nomeCurso;
       }
 
-      // 2. Unifica os dados no Node.js sem sobrecarregar a resposta da IA
       if (blocoExtraido.unidadesCurriculares?.length > 0) {
         for (const ucNova of blocoExtraido.unidadesCurriculares) {
+          // Ignores nomes genéricos criados por erro de parser
+          if (!ucNova.nomeUc || ucNova.nomeUc.toLowerCase().includes("unidade curricular 1")) continue;
+
           const ucExistente = resultadoConsolidado.unidadesCurriculares.find(
             u => u.nomeUc.toLowerCase().trim() === ucNova.nomeUc.toLowerCase().trim()
           );
 
           if (ucExistente) {
-            // Mescla capacidades e conhecimentos sem duplicar
             if (ucNova.capacidades) {
               ucExistente.capacidades = [...new Set([...(ucExistente.capacidades || []), ...ucNova.capacidades])];
             }
@@ -104,7 +109,7 @@ export async function processarPdfEmLotes(caminhoPdf, paginasPorBloco = 8) {
         }
       }
     } catch (e) {
-      console.warn(`[Aviso] Falha ao processar bloco. Continuando... Erro: ${e.message}`);
+      console.warn(`[Aviso] Falha ao processar bloco: ${e.message}`);
     }
   }
 
