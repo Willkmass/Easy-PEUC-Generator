@@ -17,7 +17,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Prompt ajustado para obrigar a extração de UCs mesmo que não tenham capacidades/conhecimentos visíveis
     const systemPrompt = `Você é um especialista em análise pedagógica do SENAI-PR.
 Sua missão é extrair com precisão os dados do Plano de Curso (PCA) fornecido em imagens.
 
@@ -25,8 +24,11 @@ REGRAS ESTRITAS DE EXTRAÇÃO:
 1. "categoria": Apenas a modalidade pedagógica (ex: "Aprendizagem Industrial", "Habilitação Técnica").
 2. "curso": APENAS o nome oficial do curso/ocupação (ex: "Assistente Administrativo").
 3. "carga_horaria_total": Formato "XXXh" (ex: "600h").
-4. "unidades_curriculares": Extraia TODAS as Unidades Curriculares (UC1, UC2, etc.) presentes na Matriz Curricular e nas páginas do documento.
-REGRA CRÍTICA PARA UCs: Se capacidades ou conhecimentos não estiverem descritos para uma UC, retorne os campos como listas vazias []. NUNCA deixe de incluir uma UC por falta de detalhamento.`;
+4. "unidades_curriculares": Extraia TODAS as Unidades Curriculares (UC1, UC2, etc.) presentes no documento. É OBRIGATÓRIO extrair ao menos as UCs presentes na Matriz Curricular.
+
+REGRA DE PREENCHIMENTO DE UCS:
+- Se "capacidades" ou "conhecimentos" não constarem no PDF para alguma UC, preencha com array vazio [].
+- NUNCA retorne a lista "unidades_curriculares" vazia.`;
 
     const parts: any[] = [{ text: systemPrompt }];
 
@@ -52,7 +54,7 @@ REGRA CRÍTICA PARA UCs: Se capacidades ou conhecimentos não estiverem descrito
           contents: [{ role: 'user', parts }],
           generationConfig: {
             responseMimeType: 'application/json',
-            maxOutputTokens: 8192, // Aumentado para não cortar o JSON no meio quando o PDF for longo
+            maxOutputTokens: 8192,
             responseSchema: {
               type: 'OBJECT',
               properties: {
@@ -76,7 +78,7 @@ REGRA CRÍTICA PARA UCs: Se capacidades ou conhecimentos não estiverem descrito
                         items: { type: 'STRING' }
                       },
                     },
-                    required: ['numero', 'nome', 'carga_horaria', 'capacidades', 'conhecimentos'],
+                    required: ['nome'],
                   },
                 },
               },
@@ -97,6 +99,14 @@ REGRA CRÍTICA PARA UCs: Se capacidades ou conhecimentos não estiverem descrito
 
     const parsedData = JSON.parse(data.candidates[0].content.parts[0].text);
 
+    // Validação extra: Bloqueia a gravação se não encontrou UCs
+    if (!parsedData.unidades_curriculares || parsedData.unidades_curriculares.length === 0) {
+      return NextResponse.json(
+        { error: 'A IA não conseguiu identificar nenhuma Unidade Curricular nas imagens enviadas.' },
+        { status: 422 }
+      );
+    }
+
     // 1. Grava o Curso no Supabase
     const { data: cursoCriado, error: erroCurso } = await supabase
       .from('cursos')
@@ -113,29 +123,27 @@ REGRA CRÍTICA PARA UCs: Se capacidades ou conhecimentos não estiverem descrito
     }
 
     // 2. Grava as Unidades Curriculares vinculadas ao Curso
-    if (parsedData.unidades_curriculares && parsedData.unidades_curriculares.length > 0) {
-      const ucsPayload = parsedData.unidades_curriculares.map((uc: any, index: number) => ({
-        curso_id: cursoCriado.id,
-        numero: uc.numero || index + 1,
-        nome: uc.nome,
-        carga_horaria: uc.carga_horaria || 0,
-        capacidades: uc.capacidades || [],
-        conhecimentos: uc.conhecimentos || [],
-      }));
+    const ucsPayload = parsedData.unidades_curriculares.map((uc: any, index: number) => ({
+      curso_id: cursoCriado.id,
+      numero: uc.numero || index + 1,
+      nome: uc.nome || `Unidade Curricular ${index + 1}`,
+      carga_horaria: uc.carga_horaria || 0,
+      capacidades: uc.capacidades || [],
+      conhecimentos: uc.conhecimentos || [],
+    }));
 
-      const { error: erroUC } = await supabase.from('unidades_curriculares').insert(ucsPayload);
+    const { error: erroUC } = await supabase.from('unidades_curriculares').insert(ucsPayload);
 
-      if (erroUC) {
-        // Rollback: exclui o curso se a gravação das UCs falhar
-        await supabase.from('cursos').delete().eq('id', cursoCriado.id);
-        return NextResponse.json({ error: `Erro ao salvar UCs no Supabase: ${erroUC.message}` }, { status: 500 });
-      }
+    if (erroUC) {
+      // Rollback: exclui o curso para não deixar o cadastro quebrado (0 UCs)
+      await supabase.from('cursos').delete().eq('id', cursoCriado.id);
+      return NextResponse.json({ error: `Erro ao salvar UCs no Supabase: ${erroUC.message}` }, { status: 500 });
     }
 
     return NextResponse.json({
       sucesso: true,
       curso: cursoCriado,
-      total_ucs: parsedData.unidades_curriculares?.length || 0,
+      total_ucs: ucsPayload.length,
       dados: parsedData,
     });
   } catch (err: any) {
