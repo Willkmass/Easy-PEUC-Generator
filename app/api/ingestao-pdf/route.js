@@ -3,7 +3,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(req) {
   try {
-    // Leitura direta no momento do recebimento do POST
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey || apiKey.trim() === '') {
@@ -43,7 +42,8 @@ export async function POST(req) {
       });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Atualizado para o modelo suportado atual
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const promptText = `
     Analise o documento fornecido (que pode ser um Plano de Curso - PCA ou uma parte fatiada dele).
