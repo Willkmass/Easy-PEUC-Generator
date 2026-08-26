@@ -3,17 +3,21 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(req) {
   try {
-    // Leitura em tempo de execução
-    const apiKey = process.env.GEMINI_API_KEY || '';
+    // Leitura direta no momento do recebimento do POST
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!apiKey) {
+    if (!apiKey || apiKey.trim() === '') {
       return NextResponse.json(
-        { success: false, error: 'Chave GEMINI_API_KEY não configurada no ambiente.' },
+        { 
+          success: false, 
+          error: 'Chave GEMINI_API_KEY não configurada no ambiente.' 
+        },
         { status: 500 }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenerativeAI(apiKey.trim());
+
     const formData = await req.formData();
     const arquivos = formData.getAll('arquivos');
 
