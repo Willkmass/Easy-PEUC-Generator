@@ -4,28 +4,22 @@ import { useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 
 export default function ImportarPCAPage() {
-  // --- ESTADOS DA FERRAMENTA DE DIVISÃO DE PDF ---
+  // Ferramenta de Divisão
   const [pdfParaDividir, setPdfParaDividir] = useState(null);
-  const [infoPdf, setInfoPdf] = useState(null); // { nome, totalPaginas, buffer }
-  const [modoDivisao, setModoDivisao] = useState('intervalo'); // 'intervalo' ou 'blocos'
-  
-  // Opção A: Intervalo Personalizado (ex: pág 1 até 15)
+  const [infoPdf, setInfoPdf] = useState(null);
+  const [modoDivisao, setModoDivisao] = useState('intervalo');
   const [paginaInicio, setPaginaInicio] = useState(1);
   const [paginaFim, setPaginaFim] = useState(1);
-
-  // Opção B: Blocos Fixos (ex: dividir a cada 10 páginas)
   const [tamanhoBloco, setTamanhoBloco] = useState(10);
-
   const [processandoPdf, setProcessandoPdf] = useState(false);
-  const [arquivosGerados, setArquivosGerados] = useState([]); // [{ nome, blobUrl, totalPaginas }]
+  const [arquivosGerados, setArquivosGerados] = useState([]);
 
-  // --- ESTADOS DA IMPORTAÇÃO DE PCA ---
+  // Importação e Ingestão
   const [arquivosImportacao, setArquivosImportacao] = useState([]);
   const [carregandoImportacao, setCarregandoImportacao] = useState(false);
   const [resultadoExtracao, setResultadoExtracao] = useState(null);
   const [erroImportacao, setErroImportacao] = useState(null);
 
-  // 1. Carrega o arquivo na Ferramenta de Divisão
   const handleCarregarPdfParaDividir = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -49,7 +43,6 @@ export default function ImportarPCAPage() {
     }
   };
 
-  // 2. Executa a Divisão Manual e gera Links para Download
   const handleExecutarDivisao = async () => {
     if (!infoPdf) return;
     setProcessandoPdf(true);
@@ -79,7 +72,6 @@ export default function ImportarPCAPage() {
           totalPaginas: indices.length
         });
       } else {
-        // Blocos Fixos
         const bloco = Math.max(1, Number(tamanhoBloco));
         let contador = 1;
 
@@ -113,7 +105,6 @@ export default function ImportarPCAPage() {
     }
   };
 
-  // 3. Processamento do Upload para a API de Ingestão
   const handleEnviarParaApi = async (e) => {
     e.preventDefault();
     if (arquivosImportacao.length === 0) return;
@@ -154,7 +145,7 @@ export default function ImportarPCAPage() {
         <p className="text-sm text-gray-600">Gerencie PDFs extensos e faça a ingestão de Planos de Curso.</p>
       </div>
 
-      {/* SEÇÃO 1: FERRAMENTA DE DIVISÃO DE PDF */}
+      {/* FERRAMENTA DE DIVISÃO DE PDF */}
       <div className="bg-amber-50 border border-amber-200 p-5 rounded-lg space-y-4">
         <div className="flex items-center justify-between border-b border-amber-200 pb-3">
           <div>
@@ -204,7 +195,7 @@ export default function ImportarPCAPage() {
                   checked={modoDivisao === 'blocos'}
                   onChange={() => setModoDivisao('blocos')}
                 />
-                Dividir em Partes Egualitárias
+                Dividir em Partes Igualitárias
               </label>
             </div>
 
@@ -254,7 +245,6 @@ export default function ImportarPCAPage() {
           </div>
         )}
 
-        {/* Lista de Arquivos Gerados para Download */}
         {arquivosGerados.length > 0 && (
           <div className="bg-white p-4 rounded border space-y-3">
             <h3 className="text-sm font-bold text-gray-700">Arquivos Prontos para Download:</h3>
@@ -281,7 +271,7 @@ export default function ImportarPCAPage() {
 
       <hr className="border-gray-200" />
 
-      {/* SEÇÃO 2: IMPORTAÇÃO E EXTRAÇÃO DE PCA */}
+      {/* AREA DE IMPORTAÇÃO */}
       <div className="bg-white p-5 rounded-lg border shadow-sm space-y-4">
         <h2 className="text-lg font-bold text-gray-800">Importar PCA para a Plataforma</h2>
 
