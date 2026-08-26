@@ -1,15 +1,15 @@
 import fs from 'fs';
-import path from 'path';
-import { PDFDocument } from 'pdf-lib';
-import PDFParser from 'pdf2json';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { GoogleAIFileManager } from '@google/generative-ai/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
 
-const schemaBloco = {
+const schemaPEUC = {
   type: SchemaType.OBJECT,
   properties: {
     nomeCurso: { type: SchemaType.STRING },
+    cargaHorariaTotal: { type: SchemaType.STRING },
     unidadesCurriculares: {
       type: SchemaType.ARRAY,
       items: {
@@ -29,98 +29,67 @@ const schemaBloco = {
         required: ["nomeUc"]
       }
     }
-  }
+  },
+  required: ["nomeCurso", "unidadesCurriculares"]
 };
 
 const model = genAI.getGenerativeModel({
   model: "gemini-1.5-flash",
   generationConfig: {
     responseMimeType: "application/json",
-    responseSchema: schemaBloco
+    responseSchema: schemaPEUC
   }
 });
 
-// Helper para converter PDF fatiado em texto puro sem estourar RAM
-function lerTextoDoChunk(bufferChunk) {
-  return new Promise((resolve, reject) => {
-    const pdfParser = new PDFParser(null, 1);
-    pdfParser.on("pdfParser_dataError", err => reject(err));
-    pdfParser.on("pdfParser_dataReady", () => resolve(pdfParser.getRawTextContent()));
-    pdfParser.parseBuffer(bufferChunk);
+export async function processarPdfEmLotes(caminhoPdf) {
+  console.log("[PEUC] Fazendo upload do PDF nativo para o Gemini File API...");
+  
+  // 1. Envia o arquivo PDF completo direto para a API do Google (sem depender de libs locais de texto)
+  const uploadResult = await fileManager.uploadFile(caminhoPdf, {
+    mimeType: "application/pdf",
+    displayName: "PCA_Document",
   });
-}
 
-export async function processarPdfEmLotes(caminhoPdf, paginasPorBloco = 10) {
-  const pdfBytes = fs.readFileSync(caminhoPdf);
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const totalPaginas = pdfDoc.getPageCount();
+  console.log(`[PEUC] Arquivo enviado com sucesso. URI: ${uploadResult.file.uri}`);
 
-  const resultadoConsolidado = {
-    curso: "",
-    unidadesCurriculares: []
-  };
+  const prompt = `
+    Você é o extrator especializado de Planos de Curso (PCA) do SENAI para o sistema PEUC.
+    Analise o documento PDF completo em anexo.
 
-  // Divide o PDF em arquivos temporários menores no disco/memória
-  for (let i = 0; i < totalPaginas; i += paginasPorBloco) {
-    const fim = Math.min(i + paginasPorBloco, totalPaginas);
-    
-    // Cria um novo PDF contendo APENAS o bloco de páginas atual (ex: 1 a 10)
-    const novoSubPdf = await PDFDocument.create();
-    const paginasCopiadas = await novoSubPdf.copyPages(pdfDoc, Array.from({ length: fim - i }, (_, index) => i + index));
-    paginasCopiadas.forEach(page => novoSubPdf.addPage(page));
-    
-    const chunkBytes = await novoSubPdf.save();
-    const textoDoBloco = await lerTextoDoChunk(Buffer.from(chunkBytes));
+    REGRAS RÍGIDAS DE EXTRAÇÃO:
+    1. Localize a Matriz Curricular e extraia TODAS as Unidades Curriculares (UCs) reais.
+    2. NUNCA gere nomes genéricos como "Unidade Curricular 1", "UC 1" ou "Unidade 1" se o nome exato não existir.
+    3. Para cada UC, leia as tabelas de detalhamento e extraia:
+       - Carga Horária (ex: "80h", "160h").
+       - Lista exata das Capacidades (Técnicas e Socioemocionais).
+       - Lista exata dos Conhecimentos / Conteúdo Formativo.
+    4. Se o documento contiver 12 UCs, retorne exatamente as 12 UCs preenchidas com seus respectivos conhecimentos.
+  `;
 
-    if (!textoDoBloco.trim()) continue;
+  try {
+    console.log("[PEUC] Processando estrutura pedagógica e tabelas...");
+    const result = await model.generateContent([
+      uploadResult.file,
+      { text: prompt }
+    ]);
 
-    const prompt = `
-      Você é o motor de ingestão do banco do PEUC.
-      Extraia as informações do trecho a seguir (Páginas ${i + 1} a ${fim} de ${totalPaginas}):
+    const resultadoJson = JSON.parse(result.response.text());
 
-      TRECHO A ANALISAR:
-      """
-      ${textoDoBloco}
-      """
-    `;
+    // Limpeza de segurança no backend para garantir que lixo não vá pro Supabase
+    resultadoJson.unidadesCurriculares = resultadoJson.unidadesCurriculares.filter(uc => {
+      const nomeValido = uc.nomeUc && !/^unidade\s+curricular\s+\d+$/i.test(uc.nomeUc.trim());
+      return nomeValido;
+    });
 
-    try {
-      const result = await model.generateContent(prompt);
-      const blocoExtraido = JSON.parse(result.response.text());
+    // 2. Limpa o arquivo dos servidores do Google após o processamento
+    await fileManager.deleteFile(uploadResult.file.name);
 
-      // 1. Atualiza nome do Curso
-      if (blocoExtraido.nomeCurso && !resultadoConsolidado.curso) {
-        resultadoConsolidado.curso = blocoExtraido.nomeCurso;
-      }
+    return resultadoJson;
 
-      // 2. Mescla UCs no objeto final sem estourar o limite da API
-      if (blocoExtraido.unidadesCurriculares?.length > 0) {
-        for (const ucNova of blocoExtraido.unidadesCurriculares) {
-          if (!ucNova.nomeUc || ucNova.nomeUc.toLowerCase().includes("unidade curricular 1")) continue;
-
-          const ucExistente = resultadoConsolidado.unidadesCurriculares.find(
-            u => u.nomeUc.toLowerCase().trim() === ucNova.nomeUc.toLowerCase().trim()
-          );
-
-          if (ucExistente) {
-            if (ucNova.capacidades) {
-              ucExistente.capacidades = [...new Set([...(ucExistente.capacidades || []), ...ucNova.capacidades])];
-            }
-            if (ucNova.conhecimentos) {
-              ucExistente.conhecimentos = [...new Set([...(ucExistente.conhecimentos || []), ...ucNova.conhecimentos])];
-            }
-            if (ucNova.cargaHoraria && !ucExistente.cargaHoraria) {
-              ucExistente.cargaHoraria = ucNova.cargaHoraria;
-            }
-          } else {
-            resultadoConsolidado.unidadesCurriculares.push(ucNova);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn(`[Aviso] Erro no bloco de páginas ${i + 1}-${fim}: ${e.message}`);
-    }
+  } catch (error) {
+    console.error("[PEUC] Erro fatal no processamento nativo:", error);
+    // Garante limpeza do arquivo em caso de erro
+    try { await fileManager.deleteFile(uploadResult.file.name); } catch (_) {}
+    throw error;
   }
-
-  return resultadoConsolidado;
 }
