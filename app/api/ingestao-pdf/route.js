@@ -42,7 +42,6 @@ export async function POST(req) {
       });
     }
 
-    // Atualizado para o modelo suportado atual
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const promptText = `
