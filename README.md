@@ -45,3 +45,4 @@ As tabelas devem ser criadas via Editor SQL no Supabase:
 
 ---
 *Build Trigger: Atualizado para reprocessar dependências no pipeline da Vercel.*
+
