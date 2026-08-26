@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const apiKey = process.env.GEMINI_API_KEY || '';
-const genAI = new GoogleGenerativeAI(apiKey);
-
 export async function POST(req) {
   try {
+    // Leitura em tempo de execução
+    const apiKey = process.env.GEMINI_API_KEY || '';
+
     if (!apiKey) {
       return NextResponse.json(
         { success: false, error: 'Chave GEMINI_API_KEY não configurada no ambiente.' },
@@ -13,6 +13,7 @@ export async function POST(req) {
       );
     }
 
+    const genAI = new GoogleGenerativeAI(apiKey);
     const formData = await req.formData();
     const arquivos = formData.getAll('arquivos');
 
@@ -23,7 +24,6 @@ export async function POST(req) {
       );
     }
 
-    // Converter cada PDF recebido para Base64
     const contentsParts = [];
 
     for (const file of arquivos) {
@@ -39,7 +39,6 @@ export async function POST(req) {
       });
     }
 
-    // Chamada do modelo Gemini 1.5 Flash
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const promptText = `
@@ -67,7 +66,6 @@ export async function POST(req) {
     const result = await model.generateContent([promptText, ...contentsParts]);
     const responseText = result.response.text();
 
-    // Limpeza de potenciais blocos Markdown da resposta do Gemini
     const cleanJson = responseText
       .replace(/```json/g, '')
       .replace(/```/g, '')
