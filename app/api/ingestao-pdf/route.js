@@ -42,7 +42,8 @@ export async function POST(req) {
       });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Alias oficial para o modelo Flash ativo
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     const promptText = `
     Analise o documento fornecido (que pode ser um Plano de Curso - PCA ou uma parte fatiada dele).
