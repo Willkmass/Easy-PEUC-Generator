@@ -42,7 +42,6 @@ export async function POST(req) {
       });
     }
 
-    // Alias oficial para o modelo Flash ativo
     const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
     const promptText = `
@@ -67,7 +66,20 @@ export async function POST(req) {
     IMPORTANTE: Retorne APENAS o JSON puro, sem blocos de texto ou marcações de código como \`\`\`json.
     `;
 
-    const result = await model.generateContent([promptText, ...contentsParts]);
+    let result;
+    try {
+      // Primeira tentativa de geração
+      result = await model.generateContent([promptText, ...contentsParts]);
+    } catch (apiErr) {
+      // Se der 503 (instabilidade momentânea do servidor do Google), tenta novamente em 2 segundos
+      if (apiErr?.message?.includes('503') || apiErr?.status === 503) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        result = await model.generateContent([promptText, ...contentsParts]);
+      } else {
+        throw apiErr;
+      }
+    }
+
     const responseText = result.response.text();
 
     const cleanJson = responseText
