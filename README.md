@@ -10,7 +10,7 @@ Sistema automatizado para extração de dados pedagógicos de **Planos de Curso 
 * **Estilização:** Tailwind CSS
 * **Banco de Dados:** Supabase (PostgreSQL)
 * **Inteligência Artificial:** Gemini 2.5 Flash API
-* **Processamento de PDF:** PDF.js
+* **Processamento de PDF:** PDF.js / pdf-lib
 
 ---
 
@@ -42,3 +42,6 @@ As tabelas devem ser criadas via Editor SQL no Supabase:
 * `cursos`: Registro de cursos e modalidades.
 * `unidades_curriculares`: Disciplinas, cargas horárias, capacidades e conhecimentos extraídos dos PCAs.
 * `peucs`: Planos de ensino finalizados e vinculados às UCs.
+
+---
+*Build Trigger: Atualizado para reprocessar dependências no pipeline da Vercel.*
