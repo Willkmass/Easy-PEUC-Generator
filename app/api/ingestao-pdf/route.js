@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { processarPdfsMultiplos } from '@/app/services/pdfProcessor';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
@@ -13,26 +13,22 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Nenhum arquivo recebido' }, { status: 400 });
     }
 
-    const caminhosTemporarios = [];
+    const buffers = [];
 
     for (const file of files) {
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      
-      const tempPath = path.join(os.tmpdir(), `${Date.now()}_${file.name}`);
-      await fs.promises.writeFile(tempPath, buffer);
-      caminhosTemporarios.push(tempPath);
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      buffers.push({
+        buffer,
+        mimeType: file.type || 'application/pdf'
+      });
     }
 
-    const resultado = await processarPdfsMultiplos(caminhosTemporarios);
-
-    for (const tempPath of caminhosTemporarios) {
-      try { await fs.promises.unlink(tempPath); } catch (_) {}
-    }
+    const resultado = await processarPdfsMultiplos(buffers);
 
     return NextResponse.json({ success: true, data: resultado });
   } catch (error) {
     console.error('Erro na API de Ingestão:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error?.message || 'Erro interno no servidor' }, { status: 500 });
   }
 }
