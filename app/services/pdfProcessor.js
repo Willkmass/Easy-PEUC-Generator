@@ -1,4 +1,6 @@
 import fs from 'fs';
+import path from 'path';
+import { PDFDocument } from 'pdf-lib';
 import PDFParser from 'pdf2json';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
@@ -38,41 +40,47 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-// Função para extrair texto preservando layout de tabelas
-function extrairTextoPdf(caminhoPdf) {
+// Helper para converter PDF fatiado em texto puro sem estourar RAM
+function lerTextoDoChunk(bufferChunk) {
   return new Promise((resolve, reject) => {
     const pdfParser = new PDFParser(null, 1);
-    pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
-    pdfParser.on("pdfParser_dataReady", () => {
-      resolve(pdfParser.getRawTextContent());
-    });
-    pdfParser.loadPDF(caminhoPdf);
+    pdfParser.on("pdfParser_dataError", err => reject(err));
+    pdfParser.on("pdfParser_dataReady", () => resolve(pdfParser.getRawTextContent()));
+    pdfParser.parseBuffer(bufferChunk);
   });
 }
 
-export async function processarPdfEmLotes(caminhoPdf, tamanhoFatimoLinhas = 150) {
-  // 1. Extração robusta do texto do PDF
-  const textoBruto = await extrairTextoPdf(caminhoPdf);
-  const linhasTexto = textoBruto.split('\n');
-  
+export async function processarPdfEmLotes(caminhoPdf, paginasPorBloco = 10) {
+  const pdfBytes = fs.readFileSync(caminhoPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const totalPaginas = pdfDoc.getPageCount();
+
   const resultadoConsolidado = {
     curso: "",
     unidadesCurriculares: []
   };
 
-  // 2. Fatiamento por volume de linhas
-  for (let i = 0; i < linhasTexto.length; i += tamanhoFatimoLinhas) {
-    const blocoTexto = linhasTexto.slice(i, i + tamanhoFatimoLinhas).join('\n');
-    if (!blocoTexto.trim()) continue;
+  // Divide o PDF em arquivos temporários menores no disco/memória
+  for (let i = 0; i < totalPaginas; i += paginasPorBloco) {
+    const fim = Math.min(i + paginasPorBloco, totalPaginas);
+    
+    // Cria um novo PDF contendo APENAS o bloco de páginas atual (ex: 1 a 10)
+    const novoSubPdf = await PDFDocument.create();
+    const paginasCopiadas = await novoSubPdf.copyPages(pdfDoc, Array.from({ length: fim - i }, (_, index) => i + index));
+    paginasCopiadas.forEach(page => novoSubPdf.addPage(page));
+    
+    const chunkBytes = await novoSubPdf.save();
+    const textoDoBloco = await lerTextoDoChunk(Buffer.from(chunkBytes));
+
+    if (!textoDoBloco.trim()) continue;
 
     const prompt = `
       Você é o motor de ingestão do banco do PEUC.
-      Extraia estritamente os dados presentes no trecho a seguir.
-      ATENÇÃO: Não invente nomes genéricos como "Unidade Curricular 1" se o nome real da UC não estiver explícito.
+      Extraia as informações do trecho a seguir (Páginas ${i + 1} a ${fim} de ${totalPaginas}):
 
       TRECHO A ANALISAR:
       """
-      ${blocoTexto}
+      ${textoDoBloco}
       """
     `;
 
@@ -80,13 +88,14 @@ export async function processarPdfEmLotes(caminhoPdf, tamanhoFatimoLinhas = 150)
       const result = await model.generateContent(prompt);
       const blocoExtraido = JSON.parse(result.response.text());
 
+      // 1. Atualiza nome do Curso
       if (blocoExtraido.nomeCurso && !resultadoConsolidado.curso) {
         resultadoConsolidado.curso = blocoExtraido.nomeCurso;
       }
 
+      // 2. Mescla UCs no objeto final sem estourar o limite da API
       if (blocoExtraido.unidadesCurriculares?.length > 0) {
         for (const ucNova of blocoExtraido.unidadesCurriculares) {
-          // Ignores nomes genéricos criados por erro de parser
           if (!ucNova.nomeUc || ucNova.nomeUc.toLowerCase().includes("unidade curricular 1")) continue;
 
           const ucExistente = resultadoConsolidado.unidadesCurriculares.find(
@@ -109,7 +118,7 @@ export async function processarPdfEmLotes(caminhoPdf, tamanhoFatimoLinhas = 150)
         }
       }
     } catch (e) {
-      console.warn(`[Aviso] Falha ao processar bloco: ${e.message}`);
+      console.warn(`[Aviso] Erro no bloco de páginas ${i + 1}-${fim}: ${e.message}`);
     }
   }
 
