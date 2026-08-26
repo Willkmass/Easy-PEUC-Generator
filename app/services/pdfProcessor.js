@@ -1,57 +1,84 @@
 import fs from 'fs';
 import pdfParse from 'pdf-parse';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Define a estrutura JSON estrita para forçar a IA a responder sem erros de sintaxe
+const schemaPEUC = {
+  type: SchemaType.OBJECT,
+  properties: {
+    curso: { type: SchemaType.STRING },
+    unidadesCurriculares: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          nomeUc: { type: SchemaType.STRING },
+          cargaHoraria: { type: SchemaType.STRING },
+          capacidades: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING }
+          },
+          conhecimentos: {
+            type: SchemaType.ARRAY,
+            items: { type: SchemaType.STRING }
+          }
+        },
+        required: ["nomeUc"]
+      }
+    }
+  },
+  required: ["curso", "unidadesCurriculares"]
+};
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  generationConfig: {
+    responseMimeType: "application/json",
+    responseSchema: schemaPEUC
+  }
+});
 
 export async function processarPdfEmLotes(caminhoPdf, paginasPorBloco = 10) {
   const dataBuffer = fs.readFileSync(caminhoPdf);
   const data = await pdfParse(dataBuffer);
   
   const totalPaginas = data.numpages;
-  let dadosAcumulados = [];
+  // Divide o texto total em blocos aproximados por quantidade de páginas
+  const linhasTexto = data.text.split('\n');
+  const linhasPorBloco = Math.ceil(linhasTexto.length / Math.ceil(totalPaginas / paginasPorBloco));
+  
+  let dadosAcumulados = { curso: "", unidadesCurriculares: [] };
 
-  for (let inicio = 1; inicio <= totalPaginas; inicio += paginasPorBloco) {
-    const fim = Math.min(inicio + paginasPorBloco - 1, totalPaginas);
+  for (let i = 0; i < linhasTexto.length; i += linhasPorBloco) {
+    const blocoTexto = linhasTexto.slice(i, i + linhasPorBloco).join('\n');
     
-    const dadosPagina = await pdfParse(dataBuffer, {
-      pagerender: (pageData) => {
-        const pageIndex = pageData.pageIndex + 1;
-        if (pageIndex >= inicio && pageIndex <= fim) {
-          return pageData.getTextContent().then(textContent => {
-            return textContent.items.map(item => item.str).join(' ');
-          });
-        }
-        return '';
-      }
-    });
+    if (!blocoTexto.trim()) continue;
 
     const prompt = `
-      Você é o motor de ingestão de banco de dados do sistema PEUC.
+      Atue como motor de ingestão do banco PEUC.
       
       ESTADO ATUAL DO BANCO:
       ${JSON.stringify(dadosAcumulados)}
 
-      NOVO TRECHO (Páginas ${inicio} a ${fim} de ${totalPaginas}):
+      NOVO TRECHO A PROCESSAR:
       """
-      ${dadosPagina.text}
+      ${blocoTexto}
       """
 
-      INSTRUÇÕES DE SAÍDA:
-      1. Extraia a hierarquia: Curso -> UC -> Capacidades/Conhecimentos.
-      2. Mantenha os dados anteriores e incremente com o novo trecho.
-      3. Retorne EXCLUSIVAMENTE um objeto JSON válido.
+      INSTRUÇÕES:
+      1. Extraia o nome do Curso (se identificado neste bloco ou mantenha o anterior).
+      2. Adicione ou atualize as Unidades Curriculares (UCs), mapeando Capacidades e Conhecimentos.
+      3. Consolide os dados novos com o ESTADO ATUAL sem duplicar registros.
     `;
 
-    const result = await model.generateContent(prompt);
-    const respostaTexto = result.response.text();
-    
     try {
-      const jsonLimpo = respostaTexto.replace(/```json|```/g, '').trim();
-      dadosAcumulados = JSON.parse(jsonLimpo);
+      const result = await model.generateContent(prompt);
+      const respostaTexto = result.response.text();
+      dadosAcumulados = JSON.parse(respostaTexto);
     } catch (e) {
-      console.warn(`[Aviso] Falha no parse do bloco ${inicio}-${fim}. Mantendo histórico.`);
+      console.warn(`[Aviso] Falha ao processar bloco de texto. Mantendo estado anterior. Erro: ${e.message}`);
     }
   }
 
