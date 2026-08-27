@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -49,7 +49,7 @@ export default function CriarPEUCPage() {
     }
   ]);
 
-  // Função para formatar texto proveniente de arrays ou objetos
+  // Formatador auxiliar de textos
   const formatarTexto = (val: any): string => {
     if (!val) return '';
     if (Array.isArray(val)) {
@@ -59,12 +59,11 @@ export default function CriarPEUCPage() {
     return String(val);
   };
 
-  // FUNÇÃO PRINCIPAL: Carrega exatamente em sintonia com a aba Cursos e UCs
+  // Carrega matrizes e UCs
   const carregarDadosCursosEUCs = async () => {
     setCarregando(true);
     let cursosEncontrados: any[] = [];
 
-    // 1. Tentar buscar no Supabase na tabela 'pcas' ou 'cursos'
     try {
       const { data: pcasDb, error: errPca } = await supabase.from('pcas').select('*');
       if (!errPca && pcasDb && pcasDb.length > 0) {
@@ -79,10 +78,8 @@ export default function CriarPEUCPage() {
       console.warn('Busca no Supabase falhou, tentando localStorage:', e);
     }
 
-    // 2. Leitura no localStorage focando na chave oficial 'cursos_peuc' e fallback genérico
     try {
       const chavesRelevantes = ['cursos_peuc', 'pcas_salvos', 'cursos'];
-      
       chavesRelevantes.forEach((chave) => {
         const itemStr = localStorage.getItem(chave);
         if (itemStr) {
@@ -102,7 +99,6 @@ export default function CriarPEUCPage() {
         }
       });
 
-      // Varredura adicional para chaves dinâmicas se ainda vazio
       if (cursosEncontrados.length === 0) {
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
@@ -127,7 +123,6 @@ export default function CriarPEUCPage() {
       console.error('Erro ao ler localStorage:', err);
     }
 
-    // 3. Normalização flexível dos cursos
     const cursosFormatados = cursosEncontrados
       .map((c) => {
         if (!c) return null;
@@ -145,14 +140,12 @@ export default function CriarPEUCPage() {
       })
       .filter(Boolean);
 
-    // Remove duplicados pelo nome do curso
     const cursosUnicos = cursosFormatados.filter(
       (curso, index, self) => index === self.findIndex((t) => t.nome === curso.nome)
     );
 
     setListaCursos(cursosUnicos);
 
-    // Seleciona automaticamente o primeiro curso e a primeira UC se existirem
     if (cursosUnicos.length > 0) {
       const primeiro = cursosUnicos[0];
       setCursoSelecionado(primeiro.nome);
@@ -171,7 +164,6 @@ export default function CriarPEUCPage() {
     carregarDadosCursosEUCs();
   }, []);
 
-  // Quando o usuário troca de Curso
   const aoMudarCurso = (nomeCurso: string) => {
     setCursoSelecionado(nomeCurso);
     const encontrado = listaCursos.find((c) => c.nome === nomeCurso);
@@ -189,7 +181,6 @@ export default function CriarPEUCPage() {
     }
   };
 
-  // Quando o usuário troca de UC
   const aoMudarUC = (nomeUC: string) => {
     const ucEncontrada = ucsDisponiveis.find(
       (u) => (u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo) === nomeUC
@@ -199,16 +190,13 @@ export default function CriarPEUCPage() {
     }
   };
 
-  // Preenche os campos da UC selecionada
   const aplicarUC = (uc: any) => {
     setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
     setUcCargaHoraria(uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '');
     setModulo(uc.modulo || uc.modulo_nome || '');
 
-    // Extração flexível de Capacidades e Objetivos
     const caps = uc.capacidades || {};
     
-    // Suporte para quando capacidades é um objeto ou array de strings
     if (typeof caps === 'object' && !Array.isArray(caps)) {
       setCapacidadesTecnicas(formatarTexto(caps.tecnicas || uc.capacidades_tecnicas || uc.capacidadesTecnicas));
       setCapacidadesBasicas(formatarTexto(caps.basicas || uc.capacidades_basicas || uc.capacidadesBasicas));
@@ -333,25 +321,31 @@ export default function CriarPEUCPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-purple-500 selection:text-white">
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-24 selection:bg-purple-500 selection:text-white font-sans">
       {/* HEADER */}
-      <header className="relative overflow-hidden bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 border-b border-indigo-500/20 py-10 px-6 shadow-2xl mb-8">
+      <header className="relative overflow-hidden bg-slate-900 border-b border-indigo-500/10 py-8 px-6 shadow-xl mb-10">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent pointer-events-none" />
         <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <span className="inline-flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full border border-indigo-400/30 uppercase tracking-widest">
-              Metodologia SENAI
-            </span>
-            <h1 className="text-3xl md:text-4xl font-black text-white mt-3 tracking-tight">
-              Plano de Ensino por Unidade Curricular (PEUC)
+            <div className="flex items-center gap-2 mb-2">
+              <span className="bg-indigo-500/10 text-indigo-400 text-[11px] font-bold px-3 py-1 rounded-full border border-indigo-500/20 uppercase tracking-wider">
+                Easy PEUC Generator
+              </span>
+              <span className="bg-slate-800 text-slate-400 text-[11px] font-medium px-2.5 py-1 rounded-full border border-slate-700/50">
+                Metodologia SENAI
+              </span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+              Criar Plano de Ensino por Unidade Curricular
             </h1>
-            <p className="text-sm text-slate-300 mt-1">
-              Criação de plano assistido por IA integrado com os PCAs cadastrados.
+            <p className="text-xs text-slate-400 mt-1">
+              Gere planos alinhados com a matriz curricular de forma ágil e com suporte de inteligência artificial.
             </p>
           </div>
           <button
             type="button"
             onClick={() => router.push('/peuc')}
-            className="text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600/50 px-5 py-3 rounded-xl transition"
+            className="text-xs font-semibold bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60 px-4 py-2.5 rounded-xl transition duration-200 backdrop-blur-sm"
           >
             ← Voltar ao Painel
           </button>
@@ -360,23 +354,24 @@ export default function CriarPEUCPage() {
 
       <div className="max-w-6xl mx-auto px-6">
         <form onSubmit={salvarPEUC} className="space-y-8">
+          
           {/* SEÇÃO 1: IDENTIFICAÇÃO GERAL */}
-          <section className="bg-slate-900/90 border border-indigo-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-5 mb-6 border-b border-slate-800/80 gap-3">
               <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-600 text-white font-extrabold text-sm">
-                  1
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 font-black text-xs border border-indigo-500/30">
+                  01
                 </span>
-                <h2 className="text-xl font-bold text-slate-100">Identificação Geral</h2>
+                <h2 className="text-lg font-bold text-slate-100">Identificação Geral</h2>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full font-semibold">
+                <span className="text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full font-medium">
                   {carregando ? 'Carregando PCAs...' : `${listaCursos.length} Curso(s) Encontrado(s)`}
                 </span>
                 <button
                   type="button"
                   onClick={carregarDadosCursosEUCs}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full font-medium transition"
+                  className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1 rounded-full font-medium transition active:scale-95"
                   title="Atualizar lista de cursos do banco/localStorage"
                 >
                   🔄 Recarregar Cursos
@@ -384,13 +379,13 @@ export default function CriarPEUCPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-xs">
+              <div className="md:col-span-1">
                 <label className="font-semibold block mb-2 text-indigo-300">Selecionar Curso (PCA)</label>
                 <select
                   value={cursoSelecionado}
                   onChange={(e) => aoMudarCurso(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                   required
                 >
                   {carregando ? (
@@ -413,7 +408,7 @@ export default function CriarPEUCPage() {
                   type="text"
                   value={modalidade}
                   onChange={(e) => setModalidade(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 p-3 rounded-xl font-medium"
+                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl font-medium focus:ring-2 focus:ring-slate-700 outline-none"
                 />
               </div>
 
@@ -423,7 +418,7 @@ export default function CriarPEUCPage() {
                   type="text"
                   value={modulo}
                   onChange={(e) => setModulo(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 p-3 rounded-xl font-medium"
+                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl font-medium focus:ring-2 focus:ring-slate-700 outline-none"
                 />
               </div>
 
@@ -432,7 +427,7 @@ export default function CriarPEUCPage() {
                 <select
                   value={ucSelecionada}
                   onChange={(e) => aoMudarUC(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                   required
                 >
                   {ucsDisponiveis.length === 0 ? (
@@ -456,7 +451,7 @@ export default function CriarPEUCPage() {
                   type="text"
                   value={ucCargaHoraria}
                   onChange={(e) => setUcCargaHoraria(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 p-3 rounded-xl font-medium"
+                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl font-medium focus:ring-2 focus:ring-slate-700 outline-none"
                 />
               </div>
 
@@ -467,7 +462,7 @@ export default function CriarPEUCPage() {
                   value={docente}
                   onChange={(e) => setDocente(e.target.value)}
                   placeholder="Nome do docente..."
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                   required
                 />
               </div>
@@ -475,12 +470,12 @@ export default function CriarPEUCPage() {
           </section>
 
           {/* SEÇÃO 2: OBJETIVOS E CAPACIDADES */}
-          <section className="bg-slate-900/90 border border-purple-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-              <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-purple-600 text-white font-extrabold text-sm">
-                2
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60">
+            <div className="flex items-center gap-3 pb-5 mb-6 border-b border-slate-800/80">
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 font-black text-xs border border-purple-500/30">
+                02
               </span>
-              <h2 className="text-xl font-bold text-slate-100">Objetivos e Capacidades do PCA</h2>
+              <h2 className="text-lg font-bold text-slate-100">Objetivos e Capacidades do PCA</h2>
             </div>
 
             <div className="space-y-5 text-xs">
@@ -490,7 +485,7 @@ export default function CriarPEUCPage() {
                   rows={2}
                   value={objetivoGeral}
                   onChange={(e) => setObjetivoGeral(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition resize-y"
                 />
               </div>
 
@@ -500,48 +495,48 @@ export default function CriarPEUCPage() {
                   rows={2}
                   value={competencias}
                   onChange={(e) => setCompetencias(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition resize-y"
                 />
               </div>
 
               {/* TRES MINI-CARDS LADO A LADO */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                <div className="bg-gradient-to-b from-indigo-950/60 to-slate-950 border border-indigo-500/30 p-5 rounded-2xl space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
+                <div className="bg-slate-950/60 border border-indigo-500/20 p-4 rounded-xl space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-black text-indigo-400 uppercase">Capacidades Técnicas</span>
+                    <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Capacidades Técnicas</span>
                     <span className="w-2 h-2 rounded-full bg-indigo-500" />
                   </div>
                   <textarea
-                    rows={7}
+                    rows={6}
                     value={capacidadesTecnicas}
                     onChange={(e) => setCapacidadesTecnicas(e.target.value)}
-                    className="w-full bg-slate-950/90 border border-indigo-500/20 text-slate-200 p-3 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
                   />
                 </div>
 
-                <div className="bg-gradient-to-b from-purple-950/60 to-slate-950 border border-purple-500/30 p-5 rounded-2xl space-y-3">
+                <div className="bg-slate-950/60 border border-purple-500/20 p-4 rounded-xl space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-black text-purple-400 uppercase">Capacidades Básicas</span>
+                    <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Capacidades Básicas</span>
                     <span className="w-2 h-2 rounded-full bg-purple-500" />
                   </div>
                   <textarea
-                    rows={7}
+                    rows={6}
                     value={capacidadesBasicas}
                     onChange={(e) => setCapacidadesBasicas(e.target.value)}
-                    className="w-full bg-slate-950/90 border border-purple-500/20 text-slate-200 p-3 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-purple-500 outline-none"
+                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs leading-relaxed focus:ring-2 focus:ring-purple-500 outline-none resize-y"
                   />
                 </div>
 
-                <div className="bg-gradient-to-b from-emerald-950/60 to-slate-950 border border-emerald-500/30 p-5 rounded-2xl space-y-3">
+                <div className="bg-slate-950/60 border border-emerald-500/20 p-4 rounded-xl space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-black text-emerald-400 uppercase">Capacidades Socioemocionais</span>
+                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Capacidades Socioemocionais</span>
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   </div>
                   <textarea
-                    rows={7}
+                    rows={6}
                     value={capacidadesSocioemocionais}
                     onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
-                    className="w-full bg-slate-950/90 border border-emerald-500/20 text-slate-200 p-3 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-emerald-500 outline-none"
+                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs leading-relaxed focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
                   />
                 </div>
               </div>
@@ -549,119 +544,130 @@ export default function CriarPEUCPage() {
           </section>
 
           {/* SEÇÃO 3: SITUAÇÃO DE APRENDIZAGEM */}
-          <section className="bg-slate-900/90 border border-pink-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-xs">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60 text-xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 mb-6 border-b border-slate-800/80">
               <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-pink-600 text-white font-extrabold text-sm">
-                  3
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-pink-600/20 text-pink-400 font-black text-xs border border-pink-500/30">
+                  03
                 </span>
-                <h2 className="text-xl font-bold text-slate-100">Situação de Aprendizagem (SA)</h2>
+                <h2 className="text-lg font-bold text-slate-100">Situação de Aprendizagem (SA)</h2>
               </div>
               <button
                 type="button"
                 onClick={gerarSituacaoComGemini}
                 disabled={gerandoIA}
-                className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-extrabold px-5 py-3 rounded-2xl flex items-center gap-2 shadow-xl transition transform hover:scale-[1.02] disabled:opacity-50"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-md hover:shadow-purple-500/10 transition active:scale-95 disabled:opacity-50 text-xs"
               >
-                <span>✨</span>
-                <span>{gerandoIA ? 'Gerando com Gemini...' : 'Gerar com Gemini IA'}</span>
+                {gerandoIA ? (
+                  <>
+                    <span className="animate-spin h-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />
+                    <span>Gerando com Gemini...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    <span>Gerar com Gemini IA</span>
+                  </>
+                )}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <label className="font-semibold block mb-2 text-pink-300">Tipo de Situação</label>
-                <select
-                  value={tipoSituacao}
-                  onChange={(e) => setTipoSituacao(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-pink-500 outline-none"
-                >
-                  <option value="Situação-Problema">Situação-Problema</option>
-                  <option value="Estudo de Caso">Estudo de Caso</option>
-                  <option value="Projeto">Projeto</option>
-                  <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
-                </select>
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="font-semibold block mb-2 text-pink-300">Tipo de Situação</label>
+                  <select
+                    value={tipoSituacao}
+                    onChange={(e) => setTipoSituacao(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition"
+                  >
+                    <option value="Situação-Problema">Situação-Problema</option>
+                    <option value="Estudo de Caso">Estudo de Caso</option>
+                    <option value="Projeto">Projeto</option>
+                    <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold block mb-2 text-slate-300">Nº de Aulas da SA</label>
+                  <input
+                    type="text"
+                    value={numAulas}
+                    onChange={(e) => setNumAulas(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold block mb-2 text-slate-300">Identificação da SA</label>
+                  <input
+                    type="text"
+                    value={numSa}
+                    onChange={(e) => setNumSa(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="font-semibold block mb-2 text-slate-300">Nº de Aulas da SA</label>
-                <input
-                  type="text"
-                  value={numAulas}
-                  onChange={(e) => setNumAulas(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold block mb-2 text-slate-300">Identificação da SA</label>
-                <input
-                  type="text"
-                  value={numSa}
-                  onChange={(e) => setNumSa(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="font-semibold block mb-2 text-slate-300">Contextualização do Tema</label>
-              <textarea
-                rows={3}
-                value={contextualizacao}
-                onChange={(e) => setContextualizacao(e.target.value)}
-                placeholder="Gerado pela IA ou preenchido manualmente..."
-                className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="font-semibold block mb-2 text-slate-300">Desafio Proposto</label>
-              <textarea
-                rows={3}
-                value={desafio}
-                onChange={(e) => setDesafio(e.target.value)}
-                placeholder="Desafio da SA..."
-                className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="font-semibold block mb-2 text-slate-300">Resultados Esperados</label>
+                <label className="font-semibold block mb-2 text-slate-300">Contextualização do Tema</label>
                 <textarea
                   rows={3}
-                  value={resultadosEsperados}
-                  onChange={(e) => setResultadosEsperados(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none"
+                  value={contextualizacao}
+                  onChange={(e) => setContextualizacao(e.target.value)}
+                  placeholder="Gerado pela IA ou preenchido manualmente..."
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition resize-y"
                 />
               </div>
 
               <div>
-                <label className="font-semibold block mb-2 text-slate-300">Critérios Mínimos de Qualidade</label>
+                <label className="font-semibold block mb-2 text-slate-300">Desafio Proposto</label>
                 <textarea
                   rows={3}
-                  value={criteriosQualidade}
-                  onChange={(e) => setCriteriosQualidade(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none"
+                  value={desafio}
+                  onChange={(e) => setDesafio(e.target.value)}
+                  placeholder="Desafio da SA..."
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition resize-y"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="font-semibold block mb-2 text-slate-300">Resultados Esperados</label>
+                  <textarea
+                    rows={3}
+                    value={resultadosEsperados}
+                    onChange={(e) => setResultadosEsperados(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition resize-y"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold block mb-2 text-slate-300">Critérios Mínimos de Qualidade</label>
+                  <textarea
+                    rows={3}
+                    value={criteriosQualidade}
+                    onChange={(e) => setCriteriosQualidade(e.target.value)}
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition resize-y"
+                  />
+                </div>
               </div>
             </div>
           </section>
 
           {/* SEÇÃO 4: PLANO DE AULA */}
-          <section className="bg-slate-900/90 border border-emerald-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60">
+            <div className="flex justify-between items-center pb-5 mb-6 border-b border-slate-800/80">
               <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-600 text-white font-extrabold text-sm">
-                  4
+                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 font-black text-xs border border-emerald-500/30">
+                  04
                 </span>
-                <h2 className="text-xl font-bold text-slate-100">Matriz do Plano de Aula</h2>
+                <h2 className="text-lg font-bold text-slate-100">Matriz do Plano de Aula</h2>
               </div>
               <button
                 type="button"
                 onClick={adicionarLinhaAula}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition active:scale-95 shadow-md shadow-emerald-900/20"
               >
                 + Adicionar Aula
               </button>
@@ -671,17 +677,17 @@ export default function CriarPEUCPage() {
               {planosAula.map((item, idx) => (
                 <div
                   key={idx}
-                  className="border border-slate-800 p-5 rounded-2xl bg-slate-950/70 space-y-3 text-xs"
+                  className="border border-slate-800/80 p-4 rounded-xl bg-slate-950/60 space-y-3 text-xs"
                 >
                   <div className="flex justify-between items-center">
-                    <span className="font-black text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-3 py-1 rounded-lg">
+                    <span className="font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-1 rounded-md text-[11px]">
                       Aula #{idx + 1}
                     </span>
                     {planosAula.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removerLinhaAula(idx)}
-                        className="text-rose-400 hover:text-rose-300 font-bold"
+                        className="text-rose-400 hover:text-rose-300 font-semibold text-[11px] transition"
                       >
                         Remover
                       </button>
@@ -695,7 +701,7 @@ export default function CriarPEUCPage() {
                         type="text"
                         value={item.numAulas}
                         onChange={(e) => atualizarLinhaAula(idx, 'numAulas', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
                     </div>
 
@@ -705,7 +711,7 @@ export default function CriarPEUCPage() {
                         type="text"
                         value={item.conhecimentos}
                         onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
                     </div>
 
@@ -715,7 +721,7 @@ export default function CriarPEUCPage() {
                         type="text"
                         value={item.capacidades}
                         onChange={(e) => atualizarLinhaAula(idx, 'capacidades', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
                     </div>
 
@@ -725,7 +731,7 @@ export default function CriarPEUCPage() {
                         type="text"
                         value={item.estrategias}
                         onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
                     </div>
 
@@ -735,7 +741,7 @@ export default function CriarPEUCPage() {
                         type="text"
                         value={item.recursos}
                         onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
                     </div>
 
@@ -745,7 +751,7 @@ export default function CriarPEUCPage() {
                         type="text"
                         value={item.instrumentos}
                         onChange={(e) => atualizarLinhaAula(idx, 'instrumentos', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl"
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
                       />
                     </div>
                   </div>
@@ -754,13 +760,13 @@ export default function CriarPEUCPage() {
             </div>
           </section>
 
-          {/* BOTÃO DE SALVAR */}
+          {/* BARRA DE AÇÕES (BOTÃO SALVAR) */}
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              className="w-full md:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-sm px-8 py-4 rounded-2xl shadow-xl transition transform hover:scale-[1.01]"
+              className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-extrabold px-8 py-4 rounded-xl shadow-xl shadow-purple-950/40 transition active:scale-[0.99] text-sm tracking-wide"
             >
-              💾 Salvar Plano de Ensino (PEUC)
+              💾 Salvar e Gerar PEUC Final
             </button>
           </div>
         </form>
