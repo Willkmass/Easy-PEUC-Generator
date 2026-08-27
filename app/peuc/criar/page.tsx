@@ -31,6 +31,7 @@ export default function CriarPEUCPage() {
   // Cursos e UCs carregados dos PCAs importados
   const [listaCursos, setListaCursos] = useState<CursoPCA[]>([]);
   const [ucsDisponiveis, setUcsDisponiveis] = useState<UCItem[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
   // Campos de Identificação Geral
   const [cursoSelecionado, setCursoSelecionado] = useState('');
@@ -73,38 +74,62 @@ export default function CriarPEUCPage() {
     }
   ]);
 
-  // Carrega e normaliza os Cursos salvos dos PCAs importados
+  // Função para formatar capacidades (trata arrays e strings)
+  const formatarCapacidade = (val: any) => {
+    if (Array.isArray(val)) return val.map((i) => `• ${i}`).join('\n');
+    if (typeof val === 'string') return val;
+    return '';
+  };
+
+  // Carrega e normaliza os Cursos salvos (LocalStorage + Supabase Fallback)
   useEffect(() => {
     const carregarCursosPCA = async () => {
+      setCarregando(true);
       let dadosBrutos: any[] = [];
 
-      try {
-        const local = localStorage.getItem('pcas_importados');
-        if (local) {
-          dadosBrutos = JSON.parse(local);
+      // 1. Tenta buscar em múltiplas chaves conhecidas no localStorage
+      const chavesPossiveis = ['pcas_importados', 'pcas', 'cursos_pca', 'pca_data'];
+      for (const chave of chavesPossiveis) {
+        try {
+          const local = localStorage.getItem(chave);
+          if (local) {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              dadosBrutos = parsed;
+              break;
+            } else if (parsed && typeof parsed === 'object') {
+              dadosBrutos = [parsed];
+              break;
+            }
+          }
+        } catch (e) {
+          console.error(`Erro ao ler ${chave} do localStorage:`, e);
         }
-      } catch (e) {
-        console.error('Erro ao ler PCAs do localStorage:', e);
       }
 
-      // Normaliza qualquer formato de chave vindo da tela de importação de PCA
+      // 2. Se não encontrar no localStorage, busca no banco do Supabase
+      if (dadosBrutos.length === 0) {
+        try {
+          const { data, error } = await supabase.from('pcas').select('*');
+          if (!error && data && data.length > 0) {
+            dadosBrutos = data;
+          }
+        } catch (err) {
+          console.warn('Falha ao buscar PCAs do Supabase:', err);
+        }
+      }
+
+      // 3. Normaliza os dados brutos encontrados
       const cursosNormalizados: CursoPCA[] = dadosBrutos.map((item: any) => {
-        const nomeCurso = item.nome || item.nome_curso || item.curso || 'Curso Sem Nome';
+        const nomeCurso = item.nome || item.nome_curso || item.curso || item.titulo || 'Curso Sem Nome';
         const modalidadeCurso = item.modalidade || item.modalidade_curso || 'Geral';
-        const ucsBrutas = item.ucs || item.unidades_curriculares || item.unidadesCurriculares || [];
+        const ucsBrutas = item.ucs || item.unidades_curriculares || item.unidadesCurriculares || item.unidades || [];
 
         const ucsMapeadas: UCItem[] = ucsBrutas.map((uc: any) => {
-          const nomeUC = uc.nome || uc.nome_uc || uc.titulo || 'UC Sem Nome';
-          const carga = uc.cargaHoraria || uc.carga_horaria || uc.ch || '';
+          const nomeUC = uc.nome || uc.nome_uc || uc.titulo || uc.unidade || 'UC Sem Nome';
+          const carga = uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '';
           const mod = uc.modulo || uc.modulo_nome || '';
           const caps = uc.capacidades || {};
-
-          // Trata tanto strings formatadas quanto arrays de capacidades
-          const formatarCapacidade = (val: any) => {
-            if (Array.isArray(val)) return val.map((i) => `• ${i}`).join('\n');
-            if (typeof val === 'string') return val;
-            return '';
-          };
 
           return {
             nome: nomeUC,
@@ -127,6 +152,7 @@ export default function CriarPEUCPage() {
         };
       });
 
+      // 4. Aplica os cursos normalizados ao estado
       if (cursosNormalizados.length > 0) {
         setListaCursos(cursosNormalizados);
         const primeiroCurso = cursosNormalizados[0];
@@ -146,6 +172,8 @@ export default function CriarPEUCPage() {
           setCompetencias(primeiraUC.capacidades.competencia || '');
         }
       }
+
+      setCarregando(false);
     };
 
     carregarCursosPCA();
@@ -195,7 +223,7 @@ export default function CriarPEUCPage() {
     setCompetencias('');
   };
 
-  // Chama o Gemini para gerar a Situação de Aprendizagem
+  // Chama a API do Gemini para gerar a Situação de Aprendizagem
   const gerarSituacaoComGemini = async () => {
     setGerandoIA(true);
     try {
@@ -314,7 +342,7 @@ export default function CriarPEUCPage() {
           <div className="flex justify-between items-center border-b pb-2">
             <h2 className="text-sm font-bold text-blue-900 uppercase">1. Identificação Geral (Upload PCA)</h2>
             <span className="text-[11px] bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-medium">
-              Autopreenchimento Ativo
+              {carregando ? 'Buscando PCAs...' : `${listaCursos.length} Curso(s) Encontrado(s)`}
             </span>
           </div>
 
@@ -328,7 +356,9 @@ export default function CriarPEUCPage() {
                 className="w-full border p-2 rounded bg-white font-medium focus:ring-2 focus:ring-blue-500"
                 required
               >
-                {listaCursos.length === 0 ? (
+                {carregando ? (
+                  <option value="">Carregando cursos...</option>
+                ) : listaCursos.length === 0 ? (
                   <option value="">Nenhum PCA importado encontrado</option>
                 ) : (
                   listaCursos.map((c, i) => (
