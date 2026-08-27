@@ -20,8 +20,8 @@ export default function CursosPage() {
     setErro(null);
 
     try {
-      // Busca cursos e inclui suas unidades curriculares ordenadas pelo número
-      const { data, error } = await supabase
+      // 1. Carrega dados do Supabase
+      const { data: dataSupabase, error } = await supabase
         .from('cursos')
         .select(`
           *,
@@ -29,17 +29,56 @@ export default function CursosPage() {
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Falha ao buscar no Supabase, buscando backup local:', error);
+      }
 
-      // Ordenar as UCs internamente pelo número da UC
-      const cursosFormatados = (data || []).map((c: any) => ({
+      const cursosSupabase = (dataSupabase || []).map((c: any) => ({
         ...c,
         unidades_curriculares: c.unidades_curriculares?.sort(
-          (a: UnidadeCurricular, b: UnidadeCurricular) => a.numero - b.numero
+          (a: UnidadeCurricular, b: UnidadeCurricular) => (a.numero || 0) - (b.numero || 0)
         ),
       }));
 
-      setCursos(cursosFormatados);
+      // 2. Carrega dados do localStorage (Fallback de Ingestão Local)
+      let cursosLocais: CursoComUCs[] = [];
+      try {
+        const localRaw = localStorage.getItem('cursos_peuc');
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          cursosLocais = parsed.map((item: any, idx: number) => ({
+            id: item.id ? String(item.id) : `local-${idx}`,
+            nome: item.nomeCurso || item.nome || 'Curso sem nome',
+            categoria: item.categoria || 'Geral',
+            carga_horaria_total: item.cargaHorariaTotal || '',
+            created_at: item.criadoEm || new Date().toISOString(),
+            unidades_curriculares: (item.unidadesCurriculares || item.unidades_curriculares || []).map(
+              (uc: any, ucIdx: number) => ({
+                id: uc.id || `uc-${ucIdx}`,
+                numero: uc.numero || ucIdx + 1,
+                nome: uc.nomeUc || uc.nome || 'UC sem nome',
+                carga_horaria: uc.cargaHoraria || uc.carga_horaria || 0,
+                capacidades: uc.capacidades || [],
+                conhecimentos: uc.conhecimentos || [],
+              })
+            ),
+          }));
+        }
+      } catch (e) {
+        console.error('Erro ao ler localStorage:', e);
+      }
+
+      // 3. Mescla ambas as fontes evitando duplicidade por ID ou Nome
+      const mapaCursos = new Map<string, CursoComUCs>();
+
+      [...cursosSupabase, ...cursosLocais].forEach((curso) => {
+        const chave = curso.id || curso.nome;
+        if (!mapaCursos.has(chave)) {
+          mapaCursos.set(chave, curso);
+        }
+      });
+
+      setCursos(Array.from(mapaCursos.values()));
     } catch (err: any) {
       setErro(err.message || 'Erro ao carregar acervo de cursos.');
     } finally {
@@ -56,21 +95,37 @@ export default function CursosPage() {
   };
 
   const handleDeletarCurso = async (e: React.MouseEvent, id: string, nome: string) => {
-    e.stopPropagation(); // Impede que o clique abra/feche a sanfona do card
+    e.stopPropagation();
 
     const confirmou = window.confirm(
-      `Tem certeza que deseja excluir o curso "${nome}"?\n\nEsta ação excluirá permanentemente o curso e todas as Unidades Curriculares vinculadas a ele.`
+      `Tem certeza que deseja excluir o curso "${nome}"?\n\nEsta ação excluirá permanentemente o curso.`
     );
 
     if (!confirmou) return;
 
     try {
       setDeletandoId(id);
-      const { error } = await supabase.from('cursos').delete().eq('id', id);
 
-      if (error) throw error;
+      // Remove do Supabase se não for ID temporário local
+      if (!id.startsWith('local-')) {
+        const { error } = await supabase.from('cursos').delete().eq('id', id);
+        if (error) console.warn('Erro ao deletar no Supabase:', error);
+      }
 
-      // Atualiza o estado local removendo o curso sem precisar recarregar a tela
+      // Remove do localStorage
+      try {
+        const localRaw = localStorage.getItem('cursos_peuc');
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          const filtrados = parsed.filter(
+            (item: any) => String(item.id) !== id && item.nomeCurso !== nome && item.nome !== nome
+          );
+          localStorage.setItem('cursos_peuc', JSON.stringify(filtrados));
+        }
+      } catch (e) {
+        console.error('Erro ao remover do localStorage:', e);
+      }
+
       setCursos((prev) => prev.filter((curso) => curso.id !== id));
       if (cursoExpandido === id) {
         setCursoExpandido(null);
@@ -101,7 +156,7 @@ export default function CursosPage() {
 
       {loading && (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-sm text-blue-600 font-medium animate-pulse">Carregando acervo do Supabase...</p>
+          <p className="text-sm text-blue-600 font-medium animate-pulse">Carregando acervo de cursos...</p>
         </div>
       )}
 
@@ -140,7 +195,7 @@ export default function CursosPage() {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                       <span className="inline-block rounded bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 border border-blue-100">
-                        {curso.categoria}
+                        {curso.categoria || 'Curso'}
                       </span>
                       {curso.carga_horaria_total && (
                         <span className="text-xs font-medium text-slate-500">
@@ -184,18 +239,20 @@ export default function CursosPage() {
                       <p className="text-xs text-slate-500 italic">Nenhuma UC vinculada a este curso.</p>
                     ) : (
                       <div className="grid grid-cols-1 gap-3">
-                        {curso.unidades_curriculares?.map((uc) => (
+                        {curso.unidades_curriculares?.map((uc, idx) => (
                           <div
-                            key={uc.id || uc.numero}
+                            key={uc.id || `uc-item-${idx}`}
                             className="rounded-lg border border-slate-200 bg-white p-4 shadow-2xs"
                           >
                             <div className="flex justify-between items-start mb-2">
                               <h4 className="font-semibold text-sm text-slate-900">
-                                {uc.numero}. {uc.nome}
+                                {uc.numero ? `${uc.numero}. ` : ''}{uc.nome}
                               </h4>
-                              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                                {uc.carga_horaria}h
-                              </span>
+                              {uc.carga_horaria ? (
+                                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                                  {uc.carga_horaria}h
+                                </span>
+                              ) : null}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 text-xs">
@@ -206,8 +263,8 @@ export default function CursosPage() {
                                 </span>
                                 {uc.capacidades && uc.capacidades.length > 0 ? (
                                   <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-                                    {uc.capacidades.map((cap, idx) => (
-                                      <li key={idx} className="line-clamp-2">{cap}</li>
+                                    {uc.capacidades.map((cap, capIdx) => (
+                                      <li key={capIdx} className="line-clamp-2">{cap}</li>
                                     ))}
                                   </ul>
                                 ) : (
@@ -222,8 +279,8 @@ export default function CursosPage() {
                                 </span>
                                 {uc.conhecimentos && uc.conhecimentos.length > 0 ? (
                                   <ul className="list-disc list-inside space-y-0.5 text-slate-600">
-                                    {uc.conhecimentos.map((con, idx) => (
-                                      <li key={idx} className="line-clamp-2">{con}</li>
+                                    {uc.conhecimentos.map((con, conIdx) => (
+                                      <li key={conIdx} className="line-clamp-2">{con}</li>
                                     ))}
                                   </ul>
                                 ) : (
