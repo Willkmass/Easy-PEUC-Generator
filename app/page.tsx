@@ -24,7 +24,7 @@ export default function DashboardPage() {
         });
       } catch (err) {
         console.error('Erro ao carregar métricas:', err);
-      } font-medium {
+      } finally {
         setLoading(false);
       }
     }
