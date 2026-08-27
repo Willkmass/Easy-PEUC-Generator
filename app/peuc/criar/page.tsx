@@ -74,7 +74,6 @@ export default function CriarPEUCPage() {
     }
   ]);
 
-  // Função auxiliar para extrair arrays de dados em estruturas aninhadas
   const extrairArrayCursos = (dados: any): any[] => {
     if (Array.isArray(dados)) return dados;
     if (dados && typeof dados === 'object') {
@@ -82,7 +81,6 @@ export default function CriarPEUCPage() {
       if (Array.isArray(dados.pcas)) return dados.pcas;
       if (Array.isArray(dados.data)) return dados.data;
       if (Array.isArray(dados.itens)) return dados.itens;
-      // Procura por qualquer propriedade interna que seja um array
       const chaveArray = Object.keys(dados).find((k) => Array.isArray(dados[k]));
       if (chaveArray) return dados[chaveArray];
       return [dados];
@@ -96,13 +94,11 @@ export default function CriarPEUCPage() {
     return '';
   };
 
-  // Carrega os PCAs varrendo todas as chaves do localStorage e fallback Supabase
   useEffect(() => {
     const carregarCursosPCA = async () => {
       setCarregando(true);
       let dadosBrutos: any[] = [];
 
-      // 1. Varrer TODAS as chaves do localStorage para encontrar dados importados
       try {
         for (let i = 0; i < localStorage.length; i++) {
           const chave = localStorage.key(i);
@@ -121,7 +117,6 @@ export default function CriarPEUCPage() {
         console.error('Erro ao ler localStorage:', e);
       }
 
-      // 2. Fallback: Se não encontrou por varredura, tenta chaves padrão
       if (dadosBrutos.length === 0) {
         ['pcas_importados', 'pcas', 'cursos_pca', 'pca_data', 'pca'].forEach((k) => {
           try {
@@ -131,7 +126,6 @@ export default function CriarPEUCPage() {
         });
       }
 
-      // 3. Fallback Supabase se continuar vazio
       if (dadosBrutos.length === 0) {
         try {
           const { data } = await supabase.from('pcas').select('*');
@@ -143,7 +137,6 @@ export default function CriarPEUCPage() {
         }
       }
 
-      // Remapeia e normaliza todos os cursos encontrados
       const cursosNormalizados: CursoPCA[] = dadosBrutos
         .map((item: any) => {
           if (!item || typeof item !== 'object') return null;
@@ -182,7 +175,6 @@ export default function CriarPEUCPage() {
         })
         .filter(Boolean) as CursoPCA[];
 
-      // Elimina duplicados por nome do curso
       const cursosUnicos = cursosNormalizados.filter(
         (curso, index, self) => index === self.findIndex((c) => c.nome === curso.nome)
       );
@@ -352,379 +344,436 @@ export default function CriarPEUCPage() {
   };
 
   return (
-    <main className="max-w-5xl mx-auto p-6 bg-slate-50 min-h-screen text-slate-800">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Nova PEUC - Metodologia SENAI</h1>
-          <p className="text-xs text-slate-500">Seleção dinâmica por PCA e Inteligência Artificial Gemini</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => router.push('/peuc')}
-          className="text-xs bg-white border border-slate-300 px-3 py-2 rounded-md hover:bg-slate-100"
-        >
-          Cancelar
-        </button>
-      </div>
-
-      <form onSubmit={salvarPEUC} className="space-y-6">
-        {/* 1. IDENTIFICAÇÃO GERAL COM SELEÇÃO AUTOMÁTICA DA PCA */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h2 className="text-sm font-bold text-blue-900 uppercase">1. Identificação Geral (Upload PCA)</h2>
-            <span className="text-[11px] bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-medium">
-              {carregando ? 'Carregando PCAs...' : `${listaCursos.length} Curso(s) Encontrado(s)`}
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-purple-500 selection:text-white">
+      {/* 1. TOP BAR / HEADER COM GRADIENTE PREMIUM */}
+      <header className="relative overflow-hidden bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 border-b border-indigo-500/20 py-10 px-6 shadow-2xl mb-8">
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-500/10 blur-3xl rounded-full pointer-events-none" />
+        <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div>
+            <span className="inline-flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full border border-indigo-400/30 uppercase tracking-widest shadow-inner">
+              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+              Metodologia SENAI
             </span>
+            <h1 className="text-3xl md:text-4xl font-black text-white mt-3 tracking-tight drop-shadow-md">
+              Plano de Ensino por Unidade Curricular (PEUC)
+            </h1>
+            <p className="text-sm text-slate-300 mt-1 max-w-2xl font-normal leading-relaxed">
+              Elaboração assistida por IA preditiva Gemini integrando com matrizes curriculares importadas do PCA.
+            </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            {/* SELEÇÃO DO CURSO */}
-            <div>
-              <label className="font-semibold block mb-1">Selecionar Curso (PCA)</label>
-              <select
-                value={cursoSelecionado}
-                onChange={(e) => selecionarCurso(e.target.value)}
-                className="w-full border p-2 rounded bg-white font-medium focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                {carregando ? (
-                  <option value="">Buscando PCAs importados...</option>
-                ) : listaCursos.length === 0 ? (
-                  <option value="">Nenhum PCA importado encontrado</option>
-                ) : (
-                  listaCursos.map((c, i) => (
-                    <option key={i} value={c.nome}>
-                      {c.nome}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            {/* MODALIDADE (AUTO) */}
-            <div>
-              <label className="font-semibold block mb-1">Modalidade</label>
-              <input
-                type="text"
-                value={modalidade}
-                onChange={(e) => setModalidade(e.target.value)}
-                className="w-full border p-2 rounded bg-slate-100 text-slate-700 font-medium"
-                readOnly
-              />
-            </div>
-
-            {/* MÓDULO (AUTO) */}
-            <div>
-              <label className="font-semibold block mb-1">Módulo</label>
-              <input
-                type="text"
-                value={modulo}
-                onChange={(e) => setModulo(e.target.value)}
-                className="w-full border p-2 rounded bg-slate-100 text-slate-700 font-medium"
-                readOnly
-              />
-            </div>
-
-            {/* SELEÇÃO DA UC */}
-            <div>
-              <label className="font-semibold block mb-1">Unidade Curricular (UC)</label>
-              <select
-                value={ucSelecionada}
-                onChange={(e) => selecionarUC(e.target.value)}
-                className="w-full border p-2 rounded bg-white font-medium focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                {ucsDisponiveis.length === 0 ? (
-                  <option value="">Selecione um curso primeiro</option>
-                ) : (
-                  ucsDisponiveis.map((u, i) => (
-                    <option key={i} value={u.nome}>
-                      {u.nome}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
-            {/* CARGA HORÁRIA (AUTO) */}
-            <div>
-              <label className="font-semibold block mb-1">Carga Horária Total</label>
-              <input
-                type="text"
-                value={ucCargaHoraria}
-                onChange={(e) => setUcCargaHoraria(e.target.value)}
-                className="w-full border p-2 rounded bg-slate-100 text-slate-700 font-medium"
-                readOnly
-              />
-            </div>
-
-            {/* DOCENTE */}
-            <div>
-              <label className="font-semibold block mb-1">Docente Responsável</label>
-              <input
-                type="text"
-                value={docente}
-                onChange={(e) => setDocente(e.target.value)}
-                placeholder="Digite seu nome..."
-                className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 2. OBJETIVOS E CAPACIDADES PREENCHIDOS AUTOMATICAMENTE DA PCA */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">
-            2. Objetivos e Capacidades do Plano de Curso (PCA)
-          </h2>
-
-          <div className="space-y-3 text-xs">
-            <div>
-              <label className="font-semibold block mb-1">Objetivo Geral da UC</label>
-              <textarea
-                rows={2}
-                value={objetivoGeral}
-                onChange={(e) => setObjetivoGeral(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Competência(s) Relacionada(s)</label>
-              <textarea
-                rows={2}
-                value={competencias}
-                onChange={(e) => setCompetencias(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-            </div>
-
-            {/* CAPACIDADES EDITÁVEIS PELO PROFESSOR */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div>
-                <label className="font-bold text-blue-800 block mb-1">Capacidades Técnicas (PCA)</label>
-                <span className="text-[10px] text-slate-500 block mb-1">Extraído da PCA. Editável:</span>
-                <textarea
-                  rows={6}
-                  value={capacidadesTecnicas}
-                  onChange={(e) => setCapacidadesTecnicas(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/20 text-xs font-sans"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-blue-800 block mb-1">Capacidades Básicas (PCA)</label>
-                <span className="text-[10px] text-slate-500 block mb-1">Extraído da PCA. Editável:</span>
-                <textarea
-                  rows={6}
-                  value={capacidadesBasicas}
-                  onChange={(e) => setCapacidadesBasicas(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/20 text-xs font-sans"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-blue-800 block mb-1">Capacidades Socioemocionais</label>
-                <span className="text-[10px] text-slate-500 block mb-1">Extraído da PCA. Editável:</span>
-                <textarea
-                  rows={6}
-                  value={capacidadesSocioemocionais}
-                  onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/20 text-xs font-sans"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. SITUAÇÃO DE APRENDIZAGEM COM GERADOR GEMINI */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 text-xs">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h2 className="text-sm font-bold text-blue-900 uppercase">3. Situação de Aprendizagem</h2>
-            <button
-              type="button"
-              onClick={gerarSituacaoComGemini}
-              disabled={gerandoIA}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition disabled:opacity-50"
-            >
-              <span>✨</span>
-              <span>{gerandoIA ? 'Gerando com Gemini...' : 'Gerar com Gemini'}</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="font-semibold block mb-1">Tipo de Situação</label>
-              <select
-                value={tipoSituacao}
-                onChange={(e) => setTipoSituacao(e.target.value)}
-                className="w-full border p-2 rounded"
-              >
-                <option value="Situação-Problema">Situação-Problema</option>
-                <option value="Estudo de Caso">Estudo de Caso</option>
-                <option value="Projeto">Projeto</option>
-                <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
-              </select>
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Número de Aulas da SA</label>
-              <input
-                type="text"
-                value={numAulas}
-                onChange={(e) => setNumAulas(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Identificação da SA</label>
-              <input
-                type="text"
-                value={numSa}
-                onChange={(e) => setNumSa(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="font-semibold block mb-1">Contextualização do Tema</label>
-            <textarea
-              rows={3}
-              value={contextualizacao}
-              onChange={(e) => setContextualizacao(e.target.value)}
-              placeholder="Clique em 'Gerar com Gemini' para autopreencher ou digite..."
-              className="w-full border p-2 rounded"
-            />
-          </div>
-
-          <div>
-            <label className="font-semibold block mb-1">Desafio Proposto ao Estudante</label>
-            <textarea
-              rows={3}
-              value={desafio}
-              onChange={(e) => setDesafio(e.target.value)}
-              placeholder="Clique em 'Gerar com Gemini' para autopreencher ou digite..."
-              className="w-full border p-2 rounded"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="font-semibold block mb-1">Resultados Esperados (Entregáveis)</label>
-              <textarea
-                rows={3}
-                value={resultadosEsperados}
-                onChange={(e) => setResultadosEsperados(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Critérios Mínimos de Qualidade</label>
-              <textarea
-                rows={3}
-                value={criteriosQualidade}
-                onChange={(e) => setCriteriosQualidade(e.target.value)}
-                className="w-full border p-2 rounded"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* 4. PLANO DE AULA DETALHADO */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h2 className="text-sm font-bold text-blue-900 uppercase">4. Matriz do Plano de Aula</h2>
-            <button
-              type="button"
-              onClick={adicionarLinhaAula}
-              className="bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded hover:bg-blue-100"
-            >
-              + Adicionar Aula
-            </button>
-          </div>
-
-          {planosAula.map((item, idx) => (
-            <div key={idx} className="border border-slate-200 p-3 rounded-lg bg-slate-50 space-y-2 text-xs">
-              <div className="flex justify-between items-center font-bold text-slate-700">
-                <span>Aula #{idx + 1}</span>
-                {planosAula.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removerLinhaAula(idx)}
-                    className="text-red-500 hover:text-red-700 text-[11px]"
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-                <div>
-                  <label className="block text-[10px] font-semibold">Nº Aulas</label>
-                  <input
-                    type="text"
-                    value={item.numAulas}
-                    onChange={(e) => atualizarLinhaAula(idx, 'numAulas', e.target.value)}
-                    className="w-full border p-1 rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold">Conteúdos</label>
-                  <input
-                    type="text"
-                    value={item.conhecimentos}
-                    onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
-                    className="w-full border p-1 rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold">Capacidades</label>
-                  <input
-                    type="text"
-                    value={item.capacidades}
-                    onChange={(e) => atualizarLinhaAula(idx, 'capacidades', e.target.value)}
-                    className="w-full border p-1 rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold">Estratégias</label>
-                  <input
-                    type="text"
-                    value={item.estrategias}
-                    onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
-                    className="w-full border p-1 rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold">Recursos</label>
-                  <input
-                    type="text"
-                    value={item.recursos}
-                    onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
-                    className="w-full border p-1 rounded bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold">Instrumentos</label>
-                  <input
-                    type="text"
-                    value={item.instrumentos}
-                    onChange={(e) => atualizarLinhaAula(idx, 'instrumentos', e.target.value)}
-                    className="w-full border p-1 rounded bg-white"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* BOTÃO FINAL DE SUBMISSÃO */}
-        <div className="flex justify-end">
           <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-sm shadow transition"
+            type="button"
+            onClick={() => router.push('/peuc')}
+            className="text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/90 text-slate-200 border border-slate-600/50 px-5 py-3 rounded-xl transition shadow-lg backdrop-blur flex items-center gap-2"
           >
-            Gerar e Salvar PEUC Completa
+            <span>←</span> Painel PEUC
           </button>
         </div>
-      </form>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-6">
+        <form onSubmit={salvarPEUC} className="space-y-8">
+          {/* SEÇÃO 1: IDENTIFICAÇÃO GERAL DO CURSO */}
+          <section className="bg-slate-900/90 border border-indigo-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 relative">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-600 text-white font-extrabold text-sm shadow-md shadow-indigo-600/30">
+                  1
+                </span>
+                <h2 className="text-xl font-bold text-slate-100 tracking-tight">Identificação Geral</h2>
+              </div>
+              <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1.5 rounded-full font-semibold">
+                {carregando ? 'Buscando PCAs...' : `${listaCursos.length} Curso(s) Encontrado(s)`}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+              <div>
+                <label className="font-semibold block mb-2 text-indigo-300">Selecionar Curso (PCA)</label>
+                <select
+                  value={cursoSelecionado}
+                  onChange={(e) => selecionarCurso(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  required
+                >
+                  {carregando ? (
+                    <option value="">Buscando matrizes importadas...</option>
+                  ) : listaCursos.length === 0 ? (
+                    <option value="">Nenhum PCA importado encontrado</option>
+                  ) : (
+                    listaCursos.map((c, i) => (
+                      <option key={i} value={c.nome}>
+                        {c.nome}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-400">Modalidade</label>
+                <input
+                  type="text"
+                  value={modalidade}
+                  onChange={(e) => setModalidade(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 p-3 rounded-xl font-medium"
+                  readOnly
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-400">Módulo</label>
+                <input
+                  type="text"
+                  value={modulo}
+                  onChange={(e) => setModulo(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 p-3 rounded-xl font-medium"
+                  readOnly
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-indigo-300">Unidade Curricular (UC)</label>
+                <select
+                  value={ucSelecionada}
+                  onChange={(e) => selecionarUC(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  required
+                >
+                  {ucsDisponiveis.length === 0 ? (
+                    <option value="">Selecione um curso primeiro</option>
+                  ) : (
+                    ucsDisponiveis.map((u, i) => (
+                      <option key={i} value={u.nome}>
+                        {u.nome}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-400">Carga Horária Total</label>
+                <input
+                  type="text"
+                  value={ucCargaHoraria}
+                  onChange={(e) => setUcCargaHoraria(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800/80 text-slate-400 p-3 rounded-xl font-medium"
+                  readOnly
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-indigo-300">Docente Responsável</label>
+                <input
+                  type="text"
+                  value={docente}
+                  onChange={(e) => setDocente(e.target.value)}
+                  placeholder="Seu nome completo..."
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  required
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* SEÇÃO 2: OBJETIVOS E CAPACIDADES DA PCA */}
+          <section className="bg-slate-900/90 border border-purple-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-purple-600 text-white font-extrabold text-sm shadow-md shadow-purple-600/30">
+                2
+              </span>
+              <h2 className="text-xl font-bold text-slate-100 tracking-tight">Objetivos e Capacidades do PCA</h2>
+            </div>
+
+            <div className="space-y-5 text-xs">
+              <div>
+                <label className="font-semibold block mb-2 text-slate-300">Objetivo Geral da UC</label>
+                <textarea
+                  rows={2}
+                  value={objetivoGeral}
+                  onChange={(e) => setObjetivoGeral(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none transition"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-300">Competência(s) Relacionada(s)</label>
+                <textarea
+                  rows={2}
+                  value={competencias}
+                  onChange={(e) => setCompetencias(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none transition"
+                />
+              </div>
+
+              {/* TRÊS MINI-CARDS COLORIDOS LADO A LADO */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                <div className="bg-gradient-to-b from-indigo-950/60 to-slate-950 border border-indigo-500/30 p-5 rounded-2xl space-y-3 shadow-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-indigo-400 uppercase tracking-wider">
+                      Capacidades Técnicas
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                  </div>
+                  <textarea
+                    rows={7}
+                    value={capacidadesTecnicas}
+                    onChange={(e) => setCapacidadesTecnicas(e.target.value)}
+                    className="w-full bg-slate-950/90 border border-indigo-500/20 text-slate-200 p-3 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div className="bg-gradient-to-b from-purple-950/60 to-slate-950 border border-purple-500/30 p-5 rounded-2xl space-y-3 shadow-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-purple-400 uppercase tracking-wider">
+                      Capacidades Básicas
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                  </div>
+                  <textarea
+                    rows={7}
+                    value={capacidadesBasicas}
+                    onChange={(e) => setCapacidadesBasicas(e.target.value)}
+                    className="w-full bg-slate-950/90 border border-purple-500/20 text-slate-200 p-3 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-purple-500 outline-none"
+                  />
+                </div>
+
+                <div className="bg-gradient-to-b from-emerald-950/60 to-slate-950 border border-emerald-500/30 p-5 rounded-2xl space-y-3 shadow-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
+                      Capacidades Socioemocionais
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  </div>
+                  <textarea
+                    rows={7}
+                    value={capacidadesSocioemocionais}
+                    onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
+                    className="w-full bg-slate-950/90 border border-emerald-500/20 text-slate-200 p-3 rounded-xl text-xs leading-relaxed focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* SEÇÃO 3: SITUAÇÃO DE APRENDIZAGEM COM BOTÃO GEMINI DESTACADO */}
+          <section className="bg-slate-900/90 border border-pink-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 text-xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-pink-600 text-white font-extrabold text-sm shadow-md shadow-pink-600/30">
+                  3
+                </span>
+                <h2 className="text-xl font-bold text-slate-100 tracking-tight">Situação de Aprendizagem (SA)</h2>
+              </div>
+              <button
+                type="button"
+                onClick={gerarSituacaoComGemini}
+                disabled={gerandoIA}
+                className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white font-extrabold px-5 py-3 rounded-2xl flex items-center gap-2.5 shadow-xl shadow-pink-900/30 transition transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+              >
+                <span className="text-base animate-spin-slow">✨</span>
+                <span>{gerandoIA ? 'Gerando com Gemini...' : 'Gerar com Gemini IA'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <label className="font-semibold block mb-2 text-pink-300">Tipo de Situação</label>
+                <select
+                  value={tipoSituacao}
+                  onChange={(e) => setTipoSituacao(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-pink-500 outline-none"
+                >
+                  <option value="Situação-Problema">Situação-Problema</option>
+                  <option value="Estudo de Caso">Estudo de Caso</option>
+                  <option value="Projeto">Projeto</option>
+                  <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-300">Nº de Aulas da SA</label>
+                <input
+                  type="text"
+                  value={numAulas}
+                  onChange={(e) => setNumAulas(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-300">Identificação da SA</label>
+                <input
+                  type="text"
+                  value={numSa}
+                  onChange={(e) => setNumSa(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3 rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-semibold block mb-2 text-slate-300">Contextualização do Tema</label>
+              <textarea
+                rows={3}
+                value={contextualizacao}
+                onChange={(e) => setContextualizacao(e.target.value)}
+                placeholder="Clique no botão acima para autopreencher a narrativa técnica..."
+                className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none transition"
+              />
+            </div>
+
+            <div>
+              <label className="font-semibold block mb-2 text-slate-300">Desafio Proposto ao Estudante</label>
+              <textarea
+                rows={3}
+                value={desafio}
+                onChange={(e) => setDesafio(e.target.value)}
+                placeholder="Clique em 'Gerar com Gemini IA' para formular o desafio prático..."
+                className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none transition"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="font-semibold block mb-2 text-slate-300">Resultados Esperados</label>
+                <textarea
+                  rows={3}
+                  value={resultadosEsperados}
+                  onChange={(e) => setResultadosEsperados(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none transition"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-slate-300">Critérios Mínimos de Qualidade</label>
+                <textarea
+                  rows={3}
+                  value={criteriosQualidade}
+                  onChange={(e) => setCriteriosQualidade(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-100 p-3.5 rounded-2xl focus:ring-2 focus:ring-pink-500 outline-none transition"
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* SEÇÃO 4: MATRIZ DO PLANO DE AULA */}
+          <section className="bg-slate-900/90 border border-emerald-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-600 text-white font-extrabold text-sm shadow-md shadow-emerald-600/30">
+                  4
+                </span>
+                <h2 className="text-xl font-bold text-slate-100 tracking-tight">Matriz do Plano de Aula</h2>
+              </div>
+              <button
+                type="button"
+                onClick={adicionarLinhaAula}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl shadow-lg transition flex items-center gap-1.5"
+              >
+                <span>+</span> Adicionar Aula
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {planosAula.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="border border-slate-800/80 p-5 rounded-2xl bg-slate-950/70 space-y-3 text-xs shadow-inner"
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-black text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-3 py-1 rounded-lg">
+                      Aula #{idx + 1}
+                    </span>
+                    {planosAula.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removerLinhaAula(idx)}
+                        className="text-rose-400 hover:text-rose-300 font-bold transition"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nº Aulas</label>
+                      <input
+                        type="text"
+                        value={item.numAulas}
+                        onChange={(e) => atualizarLinhaAula(idx, 'numAulas', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Conteúdos</label>
+                      <input
+                        type="text"
+                        value={item.conhecimentos}
+                        onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Capacidades</label>
+                      <input
+                        type="text"
+                        value={item.capacidades}
+                        onChange={(e) => atualizarLinhaAula(idx, 'capacidades', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Estratégias</label>
+                      <input
+                        type="text"
+                        value={item.estrategias}
+                        onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Recursos</label>
+                      <input
+                        type="text"
+                        value={item.recursos}
+                        onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Instrumentos</label>
+                      <input
+                        type="text"
+                        value={item.instrumentos}
+                        onChange={(e) => atualizarLinhaAula(idx, 'instrumentos', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* BOTÃO PRINCIPAL DE SUBMISSÃO */}
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-95 text-white font-black py-4 px-10 rounded-2xl shadow-2xl shadow-purple-900/50 text-sm tracking-wide transition transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              Salvar e Gerar PEUC Completa
+            </button>
+          </div>
+        </form>
+      </div>
     </main>
   );
 }
