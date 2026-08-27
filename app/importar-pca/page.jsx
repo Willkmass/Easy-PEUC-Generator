@@ -130,7 +130,21 @@ export default function ImportarPCAPage() {
         throw new Error(json.error || 'Erro no processamento.');
       }
 
+      // Atualiza o estado visual imediato
       setResultadoExtracao(json.data);
+
+      // Persiste no localStorage para ler na aba Cursos
+      const cursosExistentes = JSON.parse(localStorage.getItem('cursos_peuc') || '[]');
+      const novoCurso = {
+        id: Date.now(),
+        nomeCurso: json.data.nomeCurso || 'Curso Sem Nome',
+        unidadesCurriculares: json.data.unidadesCurriculares || [],
+        criadoEm: new Date().toISOString()
+      };
+
+      cursosExistentes.push(novoCurso);
+      localStorage.setItem('cursos_peuc', JSON.stringify(cursosExistentes));
+
     } catch (err) {
       setErroImportacao(err.message || 'Falha ao processar o arquivo.');
     } finally {
@@ -271,7 +285,7 @@ export default function ImportarPCAPage() {
 
       <hr className="border-gray-200" />
 
-      {/* AREA DE IMPORTAÇÃO */}
+      {/* ÁREA DE IMPORTAÇÃO */}
       <div className="bg-white p-5 rounded-lg border shadow-sm space-y-4">
         <h2 className="text-lg font-bold text-gray-800">Importar PCA para a Plataforma</h2>
 
@@ -307,15 +321,24 @@ export default function ImportarPCAPage() {
 
         {resultadoExtracao && (
           <div className="mt-6 border p-4 rounded-lg bg-gray-50 space-y-4">
-            <h3 className="text-lg font-bold text-green-700">
-              Curso: {resultadoExtracao.nomeCurso || 'Nome não identificado'}
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-green-700">
+                Curso: {resultadoExtracao.nomeCurso || 'Nome não identificado'}
+              </h3>
+              <span className="text-xs bg-green-100 text-green-800 font-semibold px-2.5 py-1 rounded">
+                Salvo com sucesso!
+              </span>
+            </div>
 
             <div className="space-y-3">
-              <h4 className="font-semibold text-gray-700">Unidades Curriculares ({resultadoExtracao.unidadesCurriculares?.length || 0}):</h4>
+              <h4 className="font-semibold text-gray-700">
+                Unidades Curriculares ({resultadoExtracao.unidadesCurriculares?.length || 0}):
+              </h4>
               {resultadoExtracao.unidadesCurriculares?.map((uc, idx) => (
                 <div key={idx} className="bg-white p-3 rounded border text-sm space-y-1">
-                  <p className="font-bold text-gray-800">{uc.nomeUc} {uc.cargaHoraria && `(${uc.cargaHoraria})`}</p>
+                  <p className="font-bold text-gray-800">
+                    {uc.nomeUc} {uc.cargaHoraria && `(${uc.cargaHoraria})`}
+                  </p>
                   {uc.capacidades?.length > 0 && (
                     <p><span className="font-medium">Capacidades:</span> {uc.capacidades.join('; ')}</p>
                   )}
