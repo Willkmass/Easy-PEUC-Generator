@@ -21,7 +21,6 @@ export default function CursosPage() {
     setErro(null);
 
     try {
-      // 1. Carrega dados do Supabase
       const { data: dataSupabase, error } = await supabase
         .from('cursos')
         .select(`
@@ -36,13 +35,12 @@ export default function CursosPage() {
 
       const cursosSupabase = (dataSupabase || []).map((c: any) => ({
         ...c,
-        id: String(c.id), // Normalizando ID para string
+        id: String(c.id),
         unidades_curriculares: c.unidades_curriculares?.sort(
           (a: UnidadeCurricular, b: UnidadeCurricular) => (a.numero || 0) - (b.numero || 0)
         ),
       }));
 
-      // 2. Carrega dados do localStorage (Fallback de Ingestão Local)
       let cursosLocais: CursoComUCs[] = [];
       try {
         const localRaw = localStorage.getItem('cursos_peuc');
@@ -70,7 +68,6 @@ export default function CursosPage() {
         console.error('Erro ao ler localStorage:', e);
       }
 
-      // 3. Mescla ambas as fontes evitando duplicidade por ID ou Nome Normalizado
       const mapaCursos = new Map<string, CursoComUCs>();
 
       [...cursosSupabase, ...cursosLocais].forEach((curso) => {
@@ -108,13 +105,11 @@ export default function CursosPage() {
     try {
       setDeletandoId(id);
 
-      // Remove do Supabase se não for ID temporário local
       if (!id.startsWith('local-')) {
         const { error } = await supabase.from('cursos').delete().eq('id', id);
         if (error) console.warn('Erro ao deletar no Supabase:', error);
       }
 
-      // Remove do localStorage
       try {
         const localRaw = localStorage.getItem('cursos_peuc');
         if (localRaw) {
@@ -140,79 +135,69 @@ export default function CursosPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 pb-20 selection:bg-purple-500 selection:text-white font-sans">
-      {/* HEADER - Seguindo o padrão premium */}
-      <header className="relative overflow-hidden bg-slate-900 border-b border-indigo-500/10 py-10 px-6 shadow-2xl mb-10">
-        <div className="absolute inset-0 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent pointer-events-none" />
-        <div className="max-w-6xl mx-auto relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <main className="min-h-screen bg-[#090A15] text-slate-100 pb-20 font-sans">
+      {/* HEADER IDENTICO AO PRINT DA ABAS CRIAR PEUC */}
+      <header className="bg-[#0D0E20] border-b border-indigo-900/30 py-8 px-6 mb-8">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="bg-indigo-500/10 text-indigo-400 text-[11px] font-bold px-3 py-1 rounded-full border border-indigo-500/20 uppercase tracking-wider">
-                Easy PEUC Generator
+            <div className="flex items-center gap-2 mb-3">
+              <span className="bg-[#1A1C3E] text-indigo-300 text-[10px] font-bold px-3 py-1 rounded-full border border-indigo-500/30 tracking-wider">
+                EASY PEUC GENERATOR
               </span>
-              <span className="bg-slate-800 text-slate-400 text-[11px] font-medium px-2.5 py-1 rounded-full border border-slate-700/50">
-                Acervo Digital
+              <span className="bg-[#16192E] text-slate-400 text-[10px] font-medium px-3 py-1 rounded-full border border-slate-700/40">
+                Acervo de Cursos
               </span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-black text-white mt-3 tracking-tight flex items-center gap-3">
-              <GraduationCap className="w-9 h-9 text-indigo-400" />
+            <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
               Acervo de Cursos & UCs
             </h1>
-            <p className="text-sm text-slate-300 mt-1 max-w-2xl font-normal leading-relaxed">
-              Base de dados cadastrada via extração de PCA (SENAI-PR). Gerencie as matrizes curriculares disponíveis para o plano de ensino.
+            <p className="text-sm text-slate-400 mt-2 font-normal">
+              Base de dados extraída de Planos de Curso (PCA). Gerencie os cursos e unidades curriculares disponíveis.
             </p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
             <button
               onClick={carregarCursos}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700/60 bg-slate-800 px-5 py-3 text-xs font-semibold text-slate-200 shadow-lg hover:bg-slate-700 transition"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700/60 bg-[#14162E] px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-[#1C1F42] transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? 'Atualizando...' : '🔄 Atualizar Acervo'}
-            </button>
-            <button
-              onClick={() => (window.location.href = '/peuc/criar')}
-              className="text-xs font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-95 text-white px-5 py-3 rounded-xl shadow-xl transition"
-            >
-              + Novo PEUC
+              Atualizar Acervo
             </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6">
-        {/* States de Loading/Erro/Vazio no padrão visual */}
+      <div className="max-w-7xl mx-auto px-6">
         {loading && (
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center shadow-2xl">
-            <div className="inline-flex items-center justify-center p-4 rounded-full bg-indigo-600/10 text-indigo-400 mb-4 animate-spin-slow">
-              <RefreshCw className="w-8 h-8" />
+          <div className="bg-[#0D0E20] border border-slate-800 rounded-2xl p-12 text-center">
+            <div className="inline-flex items-center justify-center p-3 rounded-full bg-indigo-500/10 text-indigo-400 mb-3 animate-spin">
+              <RefreshCw className="w-6 h-6" />
             </div>
-            <p className="text-sm text-slate-300 font-medium">Sincronizando base de dados do acervo...</p>
+            <p className="text-sm text-slate-400 font-medium">Carregando acervo de cursos...</p>
           </div>
         )}
 
         {erro && (
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-950/20 p-5 flex items-center gap-4">
-            <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0" />
+          <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-4 flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
             <p className="text-sm font-medium text-rose-300">{erro}</p>
           </div>
         )}
 
         {!loading && !erro && cursos.length === 0 && (
-          <div className="bg-slate-900 border-2 border-dashed border-slate-700 rounded-3xl p-16 text-center shadow-2xl">
-            <div className="inline-flex items-center justify-center p-4 rounded-full bg-slate-800 text-slate-500 mb-4">
-              <BookOpen className="w-8 h-8" />
+          <div className="bg-[#0D0E20] border border-dashed border-slate-800 rounded-2xl p-12 text-center">
+            <div className="inline-flex items-center justify-center p-3 rounded-full bg-slate-800/60 text-slate-500 mb-3">
+              <BookOpen className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-slate-100">Nenhum curso cadastrado ainda</h3>
-            <p className="mt-2 text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
-              Importe um Plano de Curso (PCA) em formato PDF na aba "Importar PCA" para alimentar a base de dados do Easy PEUC Generator.
+            <h3 className="text-base font-bold text-slate-200">Nenhum curso cadastrado no acervo</h3>
+            <p className="mt-1 text-sm text-slate-400 max-w-sm mx-auto">
+              Importe um Plano de Curso (PCA) em PDF para alimentar o sistema.
             </p>
           </div>
         )}
 
-        {/* Lista de Cursos no padrão Dark Mode Cards */}
         {!loading && !erro && cursos.length > 0 && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {cursos.map((curso) => {
               const isExpanded = cursoExpandido === curso.id;
               const qtdUCs = curso.unidades_curriculares?.length || 0;
@@ -221,123 +206,111 @@ export default function CursosPage() {
               return (
                 <div
                   key={curso.id}
-                  className={`overflow-hidden rounded-3xl border transition shadow-xl ${
-                    isExpanded ? 'border-indigo-500/50' : 'border-slate-800 hover:border-slate-700'
-                  } bg-slate-900/90 backdrop-blur-sm`}
+                  className={`overflow-hidden rounded-xl border transition ${
+                    isExpanded ? 'border-indigo-500/40 bg-[#12142B]' : 'border-slate-800/80 bg-[#0D0E20] hover:border-slate-700'
+                  }`}
                 >
-                  {/* Header do Card do Curso - Área clicável */}
                   <div
                     onClick={() => curso.id && toggleExpandir(curso.id)}
-                    className="flex cursor-pointer flex-col sm:flex-row sm:items-center justify-between p-6 gap-4 hover:bg-slate-800/40 transition duration-200"
+                    className="flex cursor-pointer flex-col sm:flex-row sm:items-center justify-between p-5 gap-4 hover:bg-[#161836] transition duration-150"
                   >
                     <div className="flex flex-col gap-1.5 flex-1">
-                      <div className="flex items-center gap-2.5">
-                        <span className="inline-flex rounded-lg bg-indigo-500/10 px-3 py-1 text-xs font-bold text-indigo-400 border border-indigo-500/20 uppercase tracking-wider shadow-inner">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex rounded-md bg-[#1A1C3E] px-2.5 py-0.5 text-[10px] font-bold text-indigo-300 border border-indigo-500/20 uppercase tracking-wider">
                           {curso.categoria || 'Curso'}
                         </span>
                         {curso.carga_horaria_total && (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 bg-slate-800/50 px-2.5 py-0.5 rounded-full border border-slate-700/50">
-                            <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-800/40 px-2 py-0.5 rounded border border-slate-700/30">
+                            <Clock className="w-3 h-3 text-slate-400" />
                             {curso.carga_horaria_total}
                           </span>
                         )}
                       </div>
-                      <h2 className="text-xl font-bold text-white tracking-tight leading-snug">{curso.nome}</h2>
+                      <h2 className="text-lg font-bold text-white leading-tight">{curso.nome}</h2>
                     </div>
 
                     <div className="flex items-center gap-3 self-end sm:self-center">
-                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-800 px-3.5 py-1.5 rounded-full border border-slate-700/50 shadow">
-                        <Layers className="w-4 h-4 text-slate-500" />
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-300 bg-[#161836] px-3 py-1 rounded-full border border-slate-700/40">
+                        <Layers className="w-3.5 h-3.5 text-slate-400" />
                         {qtdUCs} {qtdUCs === 1 ? 'UC' : 'UCs'}
                       </span>
 
-                      {/* Botão de Excluir estilizado (Rose padrão) */}
                       <button
                         type="button"
                         disabled={isDeletando}
                         onClick={(e) => curso.id && handleDeletarCurso(e, curso.id, curso.nome)}
                         title="Excluir curso"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/20 bg-rose-950/20 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-900 hover:border-rose-400/40 transition disabled:opacity-50 disabled:scale-100 active:scale-95 shadow"
+                        className="inline-flex items-center gap-1 rounded-lg border border-rose-500/20 bg-rose-950/20 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900/40 transition disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        {isDeletando ? 'Excluindo...' : '🗑️'}
+                        {isDeletando ? 'Excluindo...' : 'Excluir'}
                       </button>
 
-                      <div className={`p-1.5 rounded-full transition ${isExpanded ? 'bg-indigo-600' : 'bg-slate-700'}`}>
+                      <div className="text-slate-400 p-1">
                         {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-white" />
+                          <ChevronUp className="w-5 h-5 text-indigo-400" />
                         ) : (
-                          <ChevronDown className="w-4 h-4 text-slate-300" />
+                          <ChevronDown className="w-5 h-5 text-slate-500" />
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Detalhes expandidos: Lista de UCs vinculadas */}
                   {isExpanded && (
-                    <div className="border-t border-slate-800 bg-slate-950/40 p-6 md:p-8 space-y-5">
-                      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2.5 mb-5 border-b border-slate-800 pb-3">
-                        <BookOpen className="w-4 h-4 text-slate-600" />
-                        Unidades Curriculares Vinculadas à Matriz
+                    <div className="border-t border-slate-800/60 bg-[#0A0B1A] p-5 space-y-4">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2 pb-2 border-b border-slate-800/40">
+                        <BookOpen className="w-4 h-4 text-indigo-400" />
+                        Unidades Curriculares Vinculadas
                       </h3>
 
                       {qtdUCs === 0 ? (
-                        <p className="text-xs text-slate-500 italic py-4 bg-slate-900 rounded-lg text-center border border-dashed border-slate-700">
-                          Nenhuma Unidade Curricular vinculada a este curso.
-                        </p>
+                        <p className="text-xs text-slate-500 italic py-2">Nenhuma UC vinculada a este curso.</p>
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 gap-3">
                           {curso.unidades_curriculares?.map((uc, idx) => (
                             <div
                               key={uc.id || `uc-item-${idx}`}
-                              className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-inner transition hover:border-slate-700 hover:scale-[1.01]"
+                              className="rounded-lg border border-slate-800/80 bg-[#0D0E20] p-4 space-y-3"
                             >
-                              <div className="flex justify-between items-start gap-3 mb-4 pb-3 border-b border-slate-800">
-                                <h4 className="font-semibold text-sm text-slate-100 flex items-baseline gap-1.5 leading-relaxed">
-                                  {uc.numero && (
-                                    <span className="font-black text-indigo-400 text-xs">{uc.numero}.</span>
-                                  )}
-                                  {uc.nome}
+                              <div className="flex justify-between items-start gap-2">
+                                <h4 className="font-semibold text-sm text-slate-200">
+                                  {uc.numero ? `${uc.numero}. ` : ''}{uc.nome}
                                 </h4>
                                 {uc.carga_horaria ? (
-                                  <span className="shrink-0 text-xs font-extrabold text-slate-200 bg-emerald-950/80 border border-emerald-500/30 px-2.5 py-1 rounded-md shadow-inner">
+                                  <span className="shrink-0 text-xs font-bold text-slate-300 bg-emerald-950/60 border border-emerald-500/20 px-2 py-0.5 rounded">
                                     {uc.carga_horaria}h
                                   </span>
                                 ) : null}
                               </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-                                {/* Capacidades */}
-                                <div className="bg-slate-950 p-4 rounded-xl space-y-2 border border-slate-800/60 shadow-md">
-                                  <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                                    <BrainCircuit className="w-3.5 h-3.5 text-indigo-500" />
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-800/40">
+                                <div>
+                                  <span className="font-bold text-indigo-300 block mb-1">
                                     Capacidades ({uc.capacidades?.length || 0})
                                   </span>
                                   {uc.capacidades && uc.capacidades.length > 0 ? (
-                                    <ul className="list-decimal list-inside space-y-1.5 text-slate-400 leading-relaxed font-normal">
+                                    <ul className="list-disc list-inside space-y-1 text-slate-400">
                                       {uc.capacidades.map((cap, capIdx) => (
                                         <li key={capIdx} className="line-clamp-2">{cap}</li>
                                       ))}
                                     </ul>
                                   ) : (
-                                    <span className="text-slate-500 italic">Nenhuma capacidade listada.</span>
+                                    <span className="text-slate-500 italic">Nenhuma capacidade.</span>
                                   )}
                                 </div>
 
-                                {/* Conhecimentos */}
-                                <div className="bg-slate-950 p-4 rounded-xl space-y-2 border border-slate-800/60 shadow-md">
-                                  <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                                    <Layers className="w-3.5 h-3.5 text-purple-500" />
+                                <div>
+                                  <span className="font-bold text-indigo-300 block mb-1">
                                     Conhecimentos ({uc.conhecimentos?.length || 0})
                                   </span>
                                   {uc.conhecimentos && uc.conhecimentos.length > 0 ? (
-                                    <ul className="list-decimal list-inside space-y-1.5 text-slate-400 leading-relaxed font-normal">
+                                    <ul className="list-disc list-inside space-y-1 text-slate-400">
                                       {uc.conhecimentos.map((con, conIdx) => (
                                         <li key={conIdx} className="line-clamp-2">{con}</li>
                                       ))}
                                     </ul>
                                   ) : (
-                                    <span className="text-slate-500 italic">Nenhum conhecimento listado.</span>
+                                    <span className="text-slate-500 italic">Nenhum conhecimento.</span>
                                   )}
                                 </div>
                               </div>
@@ -351,8 +324,8 @@ export default function CursosPage() {
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
