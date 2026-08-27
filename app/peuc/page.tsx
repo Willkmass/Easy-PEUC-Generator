@@ -1,212 +1,322 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
-export default function ListaPeucsPage() {
-  const [peucs, setPeucs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-  const [peucDetalhada, setPeucDetalhada] = useState<any | null>(null);
+export default function CriarPEUCPage() {
+  const [cursos, setCursos] = useState<any[]>([]);
+  const [ucs, setUcs] = useState<any[]>([]);
+  
+  const [cursoSelecionadoId, setCursoSelecionadoId] = useState('');
+  const [ucSelecionadaId, setUcSelecionadaId] = useState('');
 
-  const carregarPeucs = async () => {
-    setLoading(true);
-    setErro(null);
+  // 1. Cabeçalho Institucional SENAI
+  const [docente, setDocente] = useState('');
+  const [modalidade, setModalidade] = useState('Habilitação Técnica');
+  const [modulo, setModulo] = useState('');
+  const [numAulas, setNumAulas] = useState('');
+  const [numSA, setNumSA] = useState('1');
 
-    // 1. Busca do Supabase
-    let peucsSupabase: any[] = [];
-    try {
-      const { data, error } = await supabase
-        .from('peucs')
-        .select(`
-          *,
-          cursos (nome, categoria),
-          unidades_curriculares (nome, carga_horaria)
-        `)
-        .order('created_at', { ascending: false });
+  // 2. Estratégia de Aprendizagem
+  const [tipoSituacao, setTipoSituacao] = useState('Situação-Problema');
+  const [integraOutraUC, setIntegraOutraUC] = useState('Não');
+  const [outraUcNome, setOutraUcNome] = useState('');
+  const [contextualizacao, setContextualizacao] = useState('');
+  const [desafio, setDesafio] = useState('');
+  const [resultadosEsperados, setResultadosEsperados] = useState('');
 
-      if (!error && data) {
-        peucsSupabase = data;
-      }
-    } catch (err) {
-      console.warn('Falha ao buscar PEUCs do Supabase:', err);
+  // 3. Matriz de Plano de Aula (SENAI)
+  const [planosAula, setPlanosAula] = useState([
+    {
+      numAulas: '',
+      capacidades: '',
+      conhecimentos: '',
+      estrategias: '',
+      recursos: '',
+      criterios: '',
+      instrumentos: ''
     }
+  ]);
 
-    // 2. Busca do localStorage
-    let peucsLocais: any[] = [];
-    try {
-      const localRaw = localStorage.getItem('peucs_salvas');
-      const cursosLocaisRaw = localStorage.getItem('cursos_peuc');
+  const [loading, setLoading] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
-      if (localRaw) {
-        const parsedPeucs = JSON.parse(localRaw);
-        const parsedCursos = cursosLocaisRaw ? JSON.parse(cursosLocaisRaw) : [];
-
-        peucsLocais = parsedPeucs.map((item: any) => {
-          // Resolve referências de Curso e UC caso o dado venha do localStorage
-          let cursoObj = parsedCursos.find(
-            (c: any) => String(c.id) === String(item.curso_id) || c.nomeCurso === item.curso_id
-          );
-
-          let ucObj: any = null;
-          if (cursoObj && cursoObj.unidadesCurriculares) {
-            ucObj = cursoObj.unidadesCurriculares.find(
-              (u: any) => String(u.id) === String(item.unidade_curricular_id) || u.nomeUc === item.unidade_curricular_id
-            );
-          }
-
-          return {
-            ...item,
-            cursos: item.cursos || {
-              nome: cursoObj?.nomeCurso || cursoObj?.nome || 'Curso Local',
-              categoria: cursoObj?.categoria || 'Geral',
-            },
-            unidades_curriculares: item.unidades_curriculares || {
-              nome: ucObj?.nomeUc || ucObj?.nome || 'UC Local',
-              carga_horaria: ucObj?.cargaHoraria || ucObj?.carga_horaria || 0,
-            },
-          };
-        });
-      }
-    } catch (err) {
-      console.error('Erro ao ler PEUCs do localStorage:', err);
-    }
-
-    // 3. Mescla e desduplica por ID
-    const mapa = new Map<string, any>();
-    [...peucsSupabase, ...peucsLocais].forEach((peuc) => {
-      const idChave = peuc.id || `${peuc.curso_id}-${peuc.unidade_curricular_id}`;
-      if (!mapa.has(idChave)) {
-        mapa.set(idChave, peuc);
-      }
-    });
-
-    setPeucs(Array.from(mapa.values()));
-    setLoading(false);
-  };
-
+  // Carrega Cursos (Supabase + localStorage)
   useEffect(() => {
-    carregarPeucs();
+    async function carregarCursos() {
+      setLoading(true);
+      let cursosSupabase: any[] = [];
+      try {
+        const { data } = await supabase.from('cursos').select('*').order('nome', { ascending: true });
+        if (data) cursosSupabase = data;
+      } catch (err) {
+        console.warn('Supabase offline ou sem tabela cursos:', err);
+      }
+
+      let cursosLocais: any[] = [];
+      try {
+        const localRaw = localStorage.getItem('cursos_peuc');
+        if (localRaw) {
+          cursosLocais = JSON.parse(localRaw).map((item: any, idx: number) => ({
+            id: item.id ? String(item.id) : `local-${idx}`,
+            nome: item.nomeCurso || item.nome || 'Curso Sem Nome',
+            categoria: item.categoria || 'Geral',
+          }));
+        }
+      } catch (err) {
+        console.error('Erro ao ler localStorage:', err);
+      }
+
+      const mapa = new Map<string, any>();
+      [...cursosSupabase, ...cursosLocais].forEach(c => mapa.set(c.id || c.nome, c));
+      setCursos(Array.from(mapa.values()));
+      setLoading(false);
+    }
+    carregarCursos();
   }, []);
 
+  // Carrega UCs dinamicamente com base no Curso Selecionado
+  useEffect(() => {
+    async function carregarUCs() {
+      if (!cursoSelecionadoId) {
+        setUcs([]);
+        setUcSelecionadaId('');
+        return;
+      }
+      let ucsEncontradas: any[] = [];
+      if (!cursoSelecionadoId.startsWith('local-')) {
+        try {
+          const { data } = await supabase.from('unidades_curriculares').select('*').eq('curso_id', cursoSelecionadoId);
+          if (data) ucsEncontradas = data;
+        } catch (err) {
+          console.warn('Erro ao carregar UCs:', err);
+        }
+      }
+
+      if (ucsEncontradas.length === 0) {
+        try {
+          const localRaw = localStorage.getItem('cursos_peuc');
+          if (localRaw) {
+            const parsed = JSON.parse(localRaw);
+            const cursoLocal = parsed.find((item: any) => String(item.id) === cursoSelecionadoId || item.nomeCurso === cursoSelecionadoId);
+            if (cursoLocal?.unidadesCurriculares) {
+              ucsEncontradas = cursoLocal.unidadesCurriculares.map((uc: any, idx: number) => ({
+                id: uc.id || `uc-local-${idx}`,
+                nome: uc.nomeUc || uc.nome || 'UC sem nome',
+                carga_horaria: uc.cargaHoraria || uc.carga_horaria || 0,
+              }));
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao ler UCs do localStorage:', err);
+        }
+      }
+      setUcs(ucsEncontradas);
+    }
+    carregarUCs();
+  }, [cursoSelecionadoId]);
+
+  const addLinhaPlano = () => {
+    setPlanosAula([
+      ...planosAula,
+      { numAulas: '', capacidades: '', conhecimentos: '', estrategias: '', recursos: '', criterios: '', instrumentos: '' }
+    ]);
+  };
+
+  const removerLinhaPlano = (index: number) => {
+    if (planosAula.length === 1) return;
+    setPlanosAula(planosAula.filter((_, i) => i !== index));
+  };
+
+  const handleSalvarPEUC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSalvando(true);
+    setMensagem(null);
+
+    const cursoAtual = cursos.find(c => c.id === cursoSelecionadoId);
+    const ucAtual = ucs.find(u => u.id === ucSelecionadaId);
+
+    const payload = {
+      id: Date.now().toString(),
+      curso_id: cursoSelecionadoId,
+      curso_nome: cursoAtual?.nome || 'Não informado',
+      unidade_curricular_id: ucSelecionadaId,
+      uc_nome: ucAtual?.nome || 'Não informado',
+      uc_carga_horaria: ucAtual?.carga_horaria || 0,
+      docente,
+      modalidade,
+      modulo,
+      num_aulas: numAulas,
+      num_sa: numSA,
+      tipo_situacao: tipoSituacao,
+      integra_outra_uc: integraOutraUC,
+      outra_uc_nome: outraUcNome,
+      contextualizacao,
+      desafio,
+      resultados_esperados: resultadosEsperados,
+      planos_aula: planosAula,
+      status: 'Concluído',
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      if (!cursoSelecionadoId.startsWith('local-')) {
+        await supabase.from('peucs').insert(payload);
+      }
+      const peucsLocais = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
+      peucsLocais.push(payload);
+      localStorage.setItem('peucs_salvas', JSON.stringify(peucsLocais));
+
+      setMensagem({ tipo: 'sucesso', texto: 'PEUC cadastrada com sucesso! Pronta para exportação em PDF.' });
+    } catch (err: any) {
+      setMensagem({ tipo: 'erro', texto: err.message || 'Erro ao salvar a PEUC.' });
+    } finally {
+      setSalvando(false);
+    }
+  };
+
   return (
-    <main className="mx-auto max-w-7xl p-6">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">PEUCs Elaboradas</h1>
-          <p className="text-sm text-slate-500">
-            Gerencie, consulte e valide os Planos de Ensino por Unidade Curricular salvos no sistema.
-          </p>
-        </div>
-        <Link
-          href="/peuc/criar"
-          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-        >
-          + Criar Nova PEUC
-        </Link>
+    <main className="mx-auto max-w-6xl p-6">
+      <div className="mb-6 border-b border-slate-200 pb-4">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Plano de Ensino da Unidade Curricular</h1>
+        <p className="text-sm text-slate-500">Padrão Oficial Sistema SENAI / DR-PR</p>
       </div>
 
-      {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-sm text-blue-600 font-medium animate-pulse">Carregando registros de PEUCs...</p>
-        </div>
-      )}
-
-      {erro && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-medium text-red-600">{erro}</p>
-        </div>
-      )}
-
-      {!loading && !erro && peucs.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <h3 className="text-base font-semibold text-slate-900">Nenhuma PEUC cadastrada</h3>
-          <p className="mt-1 text-sm text-slate-500 mb-4">
-            Utilize os dados importados dos PCAs para elaborar seu primeiro Plano de Ensino.
-          </p>
-          <Link
-            href="/peuc/criar"
-            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-          >
-            Elaborar PEUC Agora
-          </Link>
-        </div>
-      )}
-
-      {!loading && !erro && peucs.length > 0 && (
-        <div className="grid grid-cols-1 gap-4">
-          {peucs.map((peuc) => (
-            <div
-              key={peuc.id}
-              className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:border-slate-300 transition"
-            >
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-100">
-                      {peuc.cursos?.categoria || 'Geral'}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {peuc.cursos?.nome || 'Curso Sem Nome'}
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    UC: {peuc.unidades_curriculares?.nome || 'UC Não Identificada'} ({peuc.unidades_curriculares?.carga_horaria || 0}h)
-                  </h2>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
-                    {peuc.status || 'Concluído'}
-                  </span>
-                  <button
-                    onClick={() => setPeucDetalhada(peucDetalhada?.id === peuc.id ? null : peuc)}
-                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                  >
-                    {peucDetalhada?.id === peuc.id ? 'Ocultar Detalhes' : 'Ver Detalhes'}
-                  </button>
-                </div>
+      <form onSubmit={handleSalvarPEUC} className="space-y-6">
+        {/* Bloco 1: Identificação */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700 mb-4">1. Identificação Geral</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Docente(s)</label>
+              <input type="text" value={docente} onChange={(e) => setDocente(e.target.value)} placeholder="Nome do docente" className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Curso</label>
+              <select value={cursoSelecionadoId} onChange={(e) => setCursoSelecionadoId(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900" required>
+                <option value="">-- Selecione o Curso --</option>
+                {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Unidade Curricular</label>
+              <select value={ucSelecionadaId} onChange={(e) => setUcSelecionadaId(e.target.value)} disabled={!cursoSelecionadoId} className="w-full border rounded-md p-2 text-sm text-slate-900 disabled:bg-slate-100" required>
+                <option value="">-- Selecione a UC --</option>
+                {ucs.map(u => <option key={u.id} value={u.id}>{u.nome} ({u.carga_horaria}h)</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Modalidade</label>
+              <select value={modalidade} onChange={(e) => setModalidade(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900">
+                <option value="Aprendizagem Industrial">Aprendizagem Industrial</option>
+                <option value="Habilitação Técnica">Habilitação Técnica</option>
+                <option value="Qualificação Profissional">Qualificação Profissional</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Módulo</label>
+              <input type="text" value={modulo} onChange={(e) => setModulo(e.target.value)} placeholder="Ex: Módulo Básico" className="w-full border rounded-md p-2 text-sm text-slate-900" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Nº Aulas / Nº SA</label>
+              <div className="flex gap-2">
+                <input type="text" placeholder="Aulas" value={numAulas} onChange={(e) => setNumAulas(e.target.value)} className="w-1/2 border rounded-md p-2 text-sm text-slate-900" />
+                <input type="text" placeholder="Nº SA" value={numSA} onChange={(e) => setNumSA(e.target.value)} className="w-1/2 border rounded-md p-2 text-sm text-slate-900" />
               </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Informações Resumidas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="font-bold text-slate-600 block mb-1">Estratégia Pedagógica:</span>
-                  <span className="text-slate-800 font-medium">{peuc.tipo_situacao_aprendizagem}</span>
-                  {peuc.integra_outra_uc && (
-                    <span className="ml-2 text-blue-600 font-semibold">(Integra outra UC)</span>
+        {/* Bloco 2: Estratégia de Aprendizagem */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700">2. Estratégia de Aprendizagem Desafiadora</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Estratégia</label>
+              <select value={tipoSituacao} onChange={(e) => setTipoSituacao(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900">
+                <option value="Situação-Problema">Situação-Problema</option>
+                <option value="Estudo de Caso">Estudo de Caso</option>
+                <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
+                <option value="Projeto">Projeto</option>
+                <option value="Projeto Integrador">Projeto Integrador</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Integra outra UC/Curso?</label>
+              <select value={integraOutraUC} onChange={(e) => setIntegraOutraUC(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900">
+                <option value="Não">Não</option>
+                <option value="Sim">Sim</option>
+              </select>
+            </div>
+            {integraOutraUC === 'Sim' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Qual outra UC / Curso?</label>
+                <input type="text" value={outraUcNome} onChange={(e) => setOutraUcNome(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900" />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Contextualização</label>
+            <textarea rows={2} value={contextualizacao} onChange={(e) => setContextualizacao(e.target.value)} placeholder="Breve contexto prático da situação..." className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Desafio</label>
+            <textarea rows={2} value={desafio} onChange={(e) => setDesafio(e.target.value)} placeholder="O problema ou projeto a ser resolvido..." className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Resultados Esperados</label>
+            <textarea rows={2} value={resultadosEsperados} onChange={(e) => setResultadosEsperados(e.target.value)} placeholder="Produtos, entregáveis ou relatórios..." className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+          </div>
+        </div>
+
+        {/* Bloco 3: Matriz de Plano de Aula SENAI */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700">3. Plano de Aula</h2>
+            <button type="button" onClick={addLinhaPlano} className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-300">
+              + Adicionar Linha
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {planosAula.map((linha, idx) => (
+              <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+                <div className="flex justify-between items-center font-bold text-slate-600">
+                  <span>Item #{idx + 1}</span>
+                  {planosAula.length > 1 && (
+                    <button type="button" onClick={() => removerLinhaPlano(idx)} className="text-red-500 hover:text-red-700">
+                      Remover
+                    </button>
                   )}
                 </div>
-                <div>
-                  <span className="font-bold text-slate-600 block mb-1">Data de Criação:</span>
-                  <span className="text-slate-800">
-                    {peuc.created_at ? new Date(peuc.created_at).toLocaleDateString('pt-BR') : 'Sem data'}
-                  </span>
+                <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+                  <input placeholder="Nº Aulas" value={linha.numAulas} onChange={(e) => { const c = [...planosAula]; c[idx].numAulas = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                  <input placeholder="Capacidades" value={linha.capacidades} onChange={(e) => { const c = [...planosAula]; c[idx].capacidades = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                  <input placeholder="Conhecimentos" value={linha.conhecimentos} onChange={(e) => { const c = [...planosAula]; c[idx].conhecimentos = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                  <input placeholder="Estratégias / Descrição" value={linha.estrategias} onChange={(e) => { const c = [...planosAula]; c[idx].estrategias = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                  <input placeholder="Recursos / Ambientes" value={linha.recursos} onChange={(e) => { const c = [...planosAula]; c[idx].recursos = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                  <input placeholder="Critérios Avaliação" value={linha.criterios} onChange={(e) => { const c = [...planosAula]; c[idx].criterios = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                  <input placeholder="Instrumentos" value={linha.instrumentos} onChange={(e) => { const c = [...planosAula]; c[idx].instrumentos = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
                 </div>
               </div>
-
-              {/* Modal/Gaveta de Detalhes Expandidos */}
-              {peucDetalhada?.id === peuc.id && (
-                <div className="mt-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-lg space-y-3 text-xs">
-                  <div>
-                    <span className="font-bold text-slate-700 block uppercase">Contextualização:</span>
-                    <p className="text-slate-800 mt-1 whitespace-pre-line">{peuc.contextualizacao}</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-700 block uppercase">Desafio:</span>
-                    <p className="text-slate-800 mt-1 whitespace-pre-line">{peuc.desafio}</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-700 block uppercase">Resultados Esperados:</span>
-                    <p className="text-slate-800 mt-1 whitespace-pre-line">{peuc.resultados_esperados}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      )}
+
+        {mensagem && (
+          <div className={`p-4 rounded-lg text-sm font-semibold ${mensagem.tipo === 'sucesso' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+            {mensagem.texto}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button type="submit" disabled={salvando} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-md shadow-sm transition disabled:bg-slate-400">
+            {salvando ? 'Salvando PEUC...' : 'Salvar PEUC SENAI'}
+          </button>
+        </div>
+      </form>
     </main>
   );
 }
