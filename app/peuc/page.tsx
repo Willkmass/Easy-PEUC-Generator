@@ -14,6 +14,8 @@ export default function ListaPeucsPage() {
     setLoading(true);
     setErro(null);
 
+    // 1. Busca do Supabase
+    let peucsSupabase: any[] = [];
     try {
       const { data, error } = await supabase
         .from('peucs')
@@ -24,13 +26,64 @@ export default function ListaPeucsPage() {
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setPeucs(data || []);
-    } catch (err: any) {
-      setErro(err.message || 'Erro ao carregar lista de PEUCs.');
-    } finally {
-      setLoading(false);
+      if (!error && data) {
+        peucsSupabase = data;
+      }
+    } catch (err) {
+      console.warn('Falha ao buscar PEUCs do Supabase:', err);
     }
+
+    // 2. Busca do localStorage
+    let peucsLocais: any[] = [];
+    try {
+      const localRaw = localStorage.getItem('peucs_salvas');
+      const cursosLocaisRaw = localStorage.getItem('cursos_peuc');
+
+      if (localRaw) {
+        const parsedPeucs = JSON.parse(localRaw);
+        const parsedCursos = cursosLocaisRaw ? JSON.parse(cursosLocaisRaw) : [];
+
+        peucsLocais = parsedPeucs.map((item: any) => {
+          // Resolve referências de Curso e UC caso o dado venha do localStorage
+          let cursoObj = parsedCursos.find(
+            (c: any) => String(c.id) === String(item.curso_id) || c.nomeCurso === item.curso_id
+          );
+
+          let ucObj: any = null;
+          if (cursoObj && cursoObj.unidadesCurriculares) {
+            ucObj = cursoObj.unidadesCurriculares.find(
+              (u: any) => String(u.id) === String(item.unidade_curricular_id) || u.nomeUc === item.unidade_curricular_id
+            );
+          }
+
+          return {
+            ...item,
+            cursos: item.cursos || {
+              nome: cursoObj?.nomeCurso || cursoObj?.nome || 'Curso Local',
+              categoria: cursoObj?.categoria || 'Geral',
+            },
+            unidades_curriculares: item.unidades_curriculares || {
+              nome: ucObj?.nomeUc || ucObj?.nome || 'UC Local',
+              carga_horaria: ucObj?.cargaHoraria || ucObj?.carga_horaria || 0,
+            },
+          };
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao ler PEUCs do localStorage:', err);
+    }
+
+    // 3. Mescla e desduplica por ID
+    const mapa = new Map<string, any>();
+    [...peucsSupabase, ...peucsLocais].forEach((peuc) => {
+      const idChave = peuc.id || `${peuc.curso_id}-${peuc.unidade_curricular_id}`;
+      if (!mapa.has(idChave)) {
+        mapa.set(idChave, peuc);
+      }
+    });
+
+    setPeucs(Array.from(mapa.values()));
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -56,7 +109,7 @@ export default function ListaPeucsPage() {
 
       {loading && (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-sm text-blue-600 font-medium animate-pulse">Carregando registros do Supabase...</p>
+          <p className="text-sm text-blue-600 font-medium animate-pulse">Carregando registros de PEUCs...</p>
         </div>
       )}
 
@@ -92,14 +145,14 @@ export default function ListaPeucsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 border border-blue-100">
-                      {peuc.cursos?.categoria}
+                      {peuc.cursos?.categoria || 'Geral'}
                     </span>
                     <span className="text-xs text-slate-500">
-                      {peuc.cursos?.nome}
+                      {peuc.cursos?.nome || 'Curso Sem Nome'}
                     </span>
                   </div>
                   <h2 className="text-lg font-bold text-slate-900">
-                    UC: {peuc.unidades_curriculares?.nome} ({peuc.unidades_curriculares?.carga_horaria}h)
+                    UC: {peuc.unidades_curriculares?.nome || 'UC Não Identificada'} ({peuc.unidades_curriculares?.carga_horaria || 0}h)
                   </h2>
                 </div>
 
@@ -128,7 +181,7 @@ export default function ListaPeucsPage() {
                 <div>
                   <span className="font-bold text-slate-600 block mb-1">Data de Criação:</span>
                   <span className="text-slate-800">
-                    {new Date(peuc.created_at).toLocaleDateString('pt-BR')}
+                    {peuc.created_at ? new Date(peuc.created_at).toLocaleDateString('pt-BR') : 'Sem data'}
                   </span>
                 </div>
               </div>
