@@ -1,67 +1,204 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+
+interface CapacidadesPCA {
+  tecnicas: string;
+  basicas: string;
+  socioemocionais: string;
+  objetivo?: string;
+  competencia?: string;
+}
+
+interface UCItem {
+  nome: string;
+  cargaHoraria: string;
+  modulo: string;
+  capacidades: CapacidadesPCA;
+}
+
+interface CursoPCA {
+  nome: string;
+  modalidade: string;
+  ucs: UCItem[];
+}
 
 export default function CriarPEUCPage() {
   const router = useRouter();
 
-  // Dados Gerais
-  const [cursoNome, setCursoNome] = useState('AUXILIAR DE PRODUÇÃO');
-  const [modalidade, setModalidade] = useState('Aprendizagem Industrial');
-  const [ucNome, setUcNome] = useState('Planejamento e Controle da Produção');
-  const [ucCargaHoraria, setUcCargaHoraria] = useState('80 horas');
-  const [modulo, setModulo] = useState('Módulo Específico');
+  // Cursos e UCs carregados dos PCAs importados
+  const [listaCursos, setListaCursos] = useState<CursoPCA[]>([]);
+  const [ucsDisponiveis, setUcsDisponiveis] = useState<UCItem[]>([]);
+
+  // Campos de Identificação Geral
+  const [cursoSelecionado, setCursoSelecionado] = useState('');
+  const [modalidade, setModalidade] = useState('');
+  const [ucSelecionada, setUcSelecionada] = useState('');
+  const [ucCargaHoraria, setUcCargaHoraria] = useState('');
+  const [modulo, setModulo] = useState('');
   const [docente, setDocente] = useState('');
   const [numAulas, setNumAulas] = useState('20');
   const [numSa, setNumSa] = useState('1');
 
   // Objetivos e Competências
-  const [objetivoGeral, setObjetivoGeral] = useState(
-    'Desenvolver capacidades para planejar, programar e controlar os fluxos de produção industrial de acordo com metas, normas técnicas, de qualidade e segurança.'
-  );
-  const [competencias, setCompetencias] = useState(
-    'Auxiliar no planejamento e controle da produção, acompanhando ordens de serviço, estoques e indicadores operacionais na linha de fabricação.'
-  );
+  const [objetivoGeral, setObjetivoGeral] = useState('');
+  const [competencias, setCompetencias] = useState('');
 
-  // Capacidades Extraídas/Baseadas na PCA (Editáveis)
-  const [capacidadesTecnicas, setCapacidadesTecnicas] = useState(
-    '• Mapear as etapas do processo produtivo.\n• Preencher fichas de controle e ordens de produção.\n• Identificar gargalos e paradas de linha.\n• Controlar movimentação de matérias-primas e insumos.'
-  );
-  const [capacidadesBasicas, setCapacidadesBasicas] = useState(
-    '• Interpretar gráficos, tabelas e relatórios operacionais.\n• Aplicar cálculos matemáticos básicos aplicados ao rendimento e refugo.\n• Compreender a simbologia e terminologia técnica da produção.'
-  );
-  const [capacidadesSocioemocionais, setCapacidadesSocioemocionais] = useState(
-    '• Demonstrar compromisso com a qualidade e prazos.\n• Trabalhar em equipe de forma colaborativa.\n• Comunicar discrepâncias no processo com clareza e objetividade.'
-  );
+  // Capacidades Extraídas do PCA (Editáveis)
+  const [capacidadesTecnicas, setCapacidadesTecnicas] = useState('');
+  const [capacidadesBasicas, setCapacidadesBasicas] = useState('');
+  const [capacidadesSocioemocionais, setCapacidadesSocioemocionais] = useState('');
 
   // Situação de Aprendizagem
   const [tipoSituacao, setTipoSituacao] = useState('Situação-Problema');
-  const [integraOutraUc, setIntegraOutraUc] = useState('Não');
-  const [outraUcNome, setOutraUcNome] = useState('');
   const [contextualizacao, setContextualizacao] = useState('');
   const [desafio, setDesafio] = useState('');
   const [resultadosEsperados, setResultadosEsperados] = useState('');
   const [criteriosQualidade, setCriteriosQualidade] = useState('');
 
-  // Estado de carregamento da IA
+  // Estado de carregamento do Gemini
   const [gerandoIA, setGerandoIA] = useState(false);
 
   // Linhas do Plano de Aula
   const [planosAula, setPlanosAula] = useState([
     {
       numAulas: '4',
-      conhecimentos: 'Conceitos de PCP e Tipos de Processos Produtivos',
-      capacidades: 'Mapear etapas do processo produtivo',
-      estrategias: 'Aula expositiva dialogada e estudo de fluxo de fábrica',
-      recursos: 'Sala de aula, data-show, amostras de ordens de produção',
-      criterios: 'Identificação correta das etapas da linha',
-      instrumentos: 'Lista de verificação e exercícios práticos'
+      conhecimentos: '',
+      capacidades: '',
+      estrategias: '',
+      recursos: '',
+      instrumentos: ''
     }
   ]);
 
-  // Função para chamar a IA Gemini e preencher a Situação de Aprendizagem
+  // 1. Carrega os Cursos do localStorage / Supabase ao iniciar a página
+  useEffect(() => {
+    const carregarCursosPCA = async () => {
+      let dadosCursos: CursoPCA[] = [];
+
+      // Tenta buscar dos PCAs importados salvos localmente
+      try {
+        const local = localStorage.getItem('pcas_importados');
+        if (local) {
+          dadosCursos = JSON.parse(local);
+        }
+      } catch (e) {
+        console.error('Erro ao ler PCAs do localStorage:', e);
+      }
+
+      // Se não houver PCAs customizados salvos, utiliza lista base padrão como fallback
+      if (dadosCursos.length === 0) {
+        dadosCursos = [
+          {
+            nome: 'TÉCNICO EM LOGÍSTICA',
+            modalidade: 'Habilitação Técnica',
+            ucs: [
+              {
+                nome: 'Planejamento e Controle da Produção e Estoques',
+                cargaHoraria: '80 horas',
+                modulo: 'Módulo Específico I',
+                capacidades: {
+                  tecnicas: '• Mapear as etapas do processo produtivo.\n• Preencher fichas de controle de estoques.\n• Identificar gargalos e paradas operacionais.',
+                  basicas: '• Interpretar gráficos e relatórios operacionais.\n• Aplicar cálculos de capacidade e giro de estoque.',
+                  socioemocionais: '• Demonstrar compromisso com prazos.\n• Atuar com foco na resolução de problemas.',
+                  objetivo: 'Desenvolver capacidades para planejar e gerenciar fluxos de produção e armazenagem.',
+                  competencia: 'Auxiliar na gestão de fluxos operacionais e controle de estoques.'
+                }
+              },
+              {
+                nome: 'Operações de Armazenagem e Distribuição',
+                cargaHoraria: '60 horas',
+                modulo: 'Módulo Específico II',
+                capacidades: {
+                  tecnicas: '• Organizar o endereçamento de materiais.\n• Operar sistemas de controle de almoxarifado.',
+                  basicas: '• Utilizar planilhas e sistemas informatizados de logística.',
+                  socioemocionais: '• Trabalhar colaborativamente em equipe.',
+                  objetivo: 'Gerenciar o recebimento, estocagem e expedição de materiais.',
+                  competencia: 'Executar processos de armazenagem e movimentação de cargas.'
+                }
+              }
+            ]
+          },
+          {
+            nome: 'AUXILIAR DE PRODUÇÃO',
+            modalidade: 'Aprendizagem Industrial',
+            ucs: [
+              {
+                nome: 'Processos Industriais de Fabricação',
+                cargaHoraria: '100 horas',
+                modulo: 'Módulo Básico',
+                capacidades: {
+                  tecnicas: '• Operar máquinas básicas de fabricação.\n• Monitorar linhas de montagem.',
+                  basicas: '• Interpretar ordens de fabricação e listas de peças.',
+                  socioemocionais: '• Seguir normas de segurança do trabalho rigorosamente.',
+                  objetivo: 'Compreender os fundamentos dos processos produtivos industriais.',
+                  competencia: 'Atuar no suporte à operação de linhas produtivas.'
+                }
+              }
+            ]
+          }
+        ];
+      }
+
+      setListaCursos(dadosCursos);
+
+      // Preenche o primeiro curso por padrão
+      if (dadosCursos.length > 0) {
+        selecionarCurso(dadosCursos[0].nome, dadosCursos);
+      }
+    };
+
+    carregarCursosPCA();
+  }, []);
+
+  // Seleciona um curso e atualiza a lista de UCs disponíveis
+  const selecionarCurso = (nomeCurso: string, cursos = listaCursos) => {
+    setCursoSelecionado(nomeCurso);
+    const cursoEncontrado = cursos.find((c) => c.nome === nomeCurso);
+
+    if (cursoEncontrado) {
+      setModalidade(cursoEncontrado.modalidade);
+      setUcsDisponiveis(cursoEncontrado.ucs || []);
+
+      // Seleciona automaticamente a primeira UC do curso
+      if (cursoEncontrado.ucs && cursoEncontrado.ucs.length > 0) {
+        selecionarUC(cursoEncontrado.ucs[0].nome, cursoEncontrado.ucs);
+      } else {
+        resetarCamposUC();
+      }
+    }
+  };
+
+  // Seleciona a UC e autopreenche Modulo, CH e Capacidades (Técnicas, Básicas, Socioemocionais)
+  const selecionarUC = (nomeUC: string, ucs = ucsDisponiveis) => {
+    setUcSelecionada(nomeUC);
+    const ucEncontrada = ucs.find((u) => u.nome === nomeUC);
+
+    if (ucEncontrada) {
+      setUcCargaHoraria(ucEncontrada.cargaHoraria || '');
+      setModulo(ucEncontrada.modulo || '');
+      setCapacidadesTecnicas(ucEncontrada.capacidades?.tecnicas || '');
+      setCapacidadesBasicas(ucEncontrada.capacidades?.basicas || '');
+      setCapacidadesSocioemocionais(ucEncontrada.capacidades?.socioemocionais || '');
+      setObjetivoGeral(ucEncontrada.capacidades?.objetivo || '');
+      setCompetencias(ucEncontrada.capacidades?.competencia || '');
+    }
+  };
+
+  const resetarCamposUC = () => {
+    setUcSelecionada('');
+    setUcCargaHoraria('');
+    setModulo('');
+    setCapacidadesTecnicas('');
+    setCapacidadesBasicas('');
+    setCapacidadesSocioemocionais('');
+    setObjetivoGeral('');
+    setCompetencias('');
+  };
+
+  // Função para chamar o Gemini e gerar a Situação de Aprendizagem
   const gerarSituacaoComGemini = async () => {
     setGerandoIA(true);
     try {
@@ -69,8 +206,8 @@ export default function CriarPEUCPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          curso: cursoNome,
-          uc: ucNome,
+          curso: cursoSelecionado,
+          uc: ucSelecionada,
           tipoSituacao,
           capacidades: `${capacidadesTecnicas}\n${capacidadesBasicas}\n${capacidadesSocioemocionais}`
         })
@@ -84,24 +221,9 @@ export default function CriarPEUCPage() {
       if (data.resultados_esperados) setResultadosEsperados(data.resultados_esperados);
       if (data.criterios_qualidade) setCriteriosQualidade(data.criterios_qualidade);
     } catch (err: any) {
-      alert('Não foi possível gerar com o Gemini: ' + err.message);
+      alert('Erro ao gerar com o Gemini: ' + err.message);
     } finally {
       setGerandoIA(false);
-    }
-  };
-
-  const carregarDadosPCA = (uc: string) => {
-    setUcNome(uc);
-    if (uc.toLowerCase().includes('controle') || uc.toLowerCase().includes('planejamento')) {
-      setCapacidadesTecnicas(
-        '• Mapear as etapas do processo produtivo.\n• Preencher fichas de controle e ordens de produção.\n• Identificar gargalos e paradas de linha.'
-      );
-      setCapacidadesBasicas(
-        '• Interpretar gráficos e relatórios operacionais.\n• Aplicar cálculos matemáticos básicos aplicados ao rendimento.'
-      );
-      setCapacidadesSocioemocionais(
-        '• Demonstrar compromisso com a qualidade e prazos.\n• Trabalhar em equipe de forma colaborativa.'
-      );
     }
   };
 
@@ -114,7 +236,6 @@ export default function CriarPEUCPage() {
         capacidades: '',
         estrategias: '',
         recursos: '',
-        criterios: '',
         instrumentos: ''
       }
     ]);
@@ -135,9 +256,9 @@ export default function CriarPEUCPage() {
 
     const novaPEUC = {
       id: String(Date.now()),
-      curso_nome: cursoNome,
+      curso_nome: cursoSelecionado,
       modalidade,
-      uc_nome: ucNome,
+      uc_nome: ucSelecionada,
       uc_carga_horaria: ucCargaHoraria,
       modulo,
       docente,
@@ -149,8 +270,6 @@ export default function CriarPEUCPage() {
       capacidades_basicas: capacidadesBasicas,
       capacidades_socioemocionais: capacidadesSocioemocionais,
       tipo_situacao: tipoSituacao,
-      integra_outra_uc: integraOutraUc,
-      outra_uc_nome: outraUcNome,
       contextualizacao,
       desafio,
       resultados_esperados: resultadosEsperados,
@@ -164,13 +283,13 @@ export default function CriarPEUCPage() {
       salvas.unshift(novaPEUC);
       localStorage.setItem('peucs_salvas', JSON.stringify(salvas));
     } catch (err) {
-      console.error('Erro no localStorage:', err);
+      console.error('Erro local:', err);
     }
 
     try {
       await supabase.from('peucs').insert([novaPEUC]);
     } catch (err) {
-      console.warn('Banco de dados offline. Salvo localmente.');
+      console.warn('Persistido apenas localmente.');
     }
 
     router.push(`/peuc/visualizar/${novaPEUC.id}`);
@@ -181,9 +300,10 @@ export default function CriarPEUCPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Nova PEUC - Metodologia SENAI</h1>
-          <p className="text-xs text-slate-500">Preenchimento guiado com Assistente Gemini</p>
+          <p className="text-xs text-slate-500">Seleção dinâmica por PCA e geração com Gemini</p>
         </div>
         <button
+          type="button"
           onClick={() => router.push('/peuc')}
           className="text-xs bg-white border border-slate-300 px-3 py-2 rounded-md hover:bg-slate-100"
         >
@@ -192,77 +312,107 @@ export default function CriarPEUCPage() {
       </div>
 
       <form onSubmit={salvarPEUC} className="space-y-6">
-        {/* 1. IDENTIFICAÇÃO */}
+        {/* 1. IDENTIFICAÇÃO GERAL COM DROPDOWNS DINÂMICOS DA PCA */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">1. Identificação Geral</h2>
+          <div className="flex justify-between items-center border-b pb-2">
+            <h2 className="text-sm font-bold text-blue-900 uppercase">1. Identificação Geral (Upload PCA)</h2>
+            <span className="text-[11px] bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-medium">
+              Autopreenchimento Ativo
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            {/* SELEÇÃO DO CURSO */}
             <div>
-              <label className="font-semibold block mb-1">Nome do Curso</label>
-              <input
-                type="text"
-                value={cursoNome}
-                onChange={(e) => setCursoNome(e.target.value)}
-                className="w-full border p-2 rounded"
+              <label className="font-semibold block mb-1">Selecionar Curso (PCA)</label>
+              <select
+                value={cursoSelecionado}
+                onChange={(e) => selecionarCurso(e.target.value)}
+                className="w-full border p-2 rounded bg-white font-medium focus:ring-2 focus:ring-blue-500"
                 required
-              />
+              >
+                {listaCursos.map((c, i) => (
+                  <option key={i} value={c.nome}>
+                    {c.nome}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            {/* MODALIDADE (AUTO) */}
             <div>
               <label className="font-semibold block mb-1">Modalidade</label>
               <input
                 type="text"
                 value={modalidade}
                 onChange={(e) => setModalidade(e.target.value)}
-                className="w-full border p-2 rounded"
-                required
+                className="w-full border p-2 rounded bg-slate-100 text-slate-700 font-medium"
+                readOnly
               />
             </div>
+
+            {/* MÓDULO (AUTO) */}
             <div>
               <label className="font-semibold block mb-1">Módulo</label>
               <input
                 type="text"
                 value={modulo}
                 onChange={(e) => setModulo(e.target.value)}
-                className="w-full border p-2 rounded"
+                className="w-full border p-2 rounded bg-slate-100 text-slate-700 font-medium"
+                readOnly
               />
             </div>
+
+            {/* SELEÇÃO DA UC */}
             <div>
               <label className="font-semibold block mb-1">Unidade Curricular (UC)</label>
-              <input
-                type="text"
-                value={ucNome}
-                onChange={(e) => carregarDadosPCA(e.target.value)}
-                className="w-full border p-2 rounded"
+              <select
+                value={ucSelecionada}
+                onChange={(e) => selecionarUC(e.target.value)}
+                className="w-full border p-2 rounded bg-white font-medium focus:ring-2 focus:ring-blue-500"
                 required
-              />
+              >
+                {ucsDisponiveis.map((u, i) => (
+                  <option key={i} value={u.nome}>
+                    {u.nome}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            {/* CARGA HORÁRIA (AUTO) */}
             <div>
               <label className="font-semibold block mb-1">Carga Horária Total</label>
               <input
                 type="text"
                 value={ucCargaHoraria}
                 onChange={(e) => setUcCargaHoraria(e.target.value)}
-                className="w-full border p-2 rounded"
-                required
+                className="w-full border p-2 rounded bg-slate-100 text-slate-700 font-medium"
+                readOnly
               />
             </div>
+
+            {/* DOCENTE */}
             <div>
               <label className="font-semibold block mb-1">Docente Responsável</label>
               <input
                 type="text"
                 value={docente}
                 onChange={(e) => setDocente(e.target.value)}
-                placeholder="Nome do Professor"
-                className="w-full border p-2 rounded"
+                placeholder="Digite seu nome..."
+                className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
           </div>
         </div>
 
-        {/* 2. OBJETIVOS E CAPACIDADES DA PCA */}
+        {/* 2. OBJETIVOS E CAPACIDADES PREENCHIDOS AUTOMATICAMENTE DA PCA */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">2. Objetivos e Capacidades (PCA)</h2>
-          
+          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">
+            2. Objetivos e Capacidades do Plano de Curso (PCA)
+          </h2>
+
           <div className="space-y-3 text-xs">
             <div>
               <label className="font-semibold block mb-1">Objetivo Geral da UC</label>
@@ -283,32 +433,36 @@ export default function CriarPEUCPage() {
               />
             </div>
 
+            {/* CAPACIDADES EDITÁVEIS PELO PROFESSOR */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
               <div>
                 <label className="font-bold text-blue-800 block mb-1">Capacidades Técnicas (PCA)</label>
+                <span className="text-[10px] text-slate-500 block mb-1">Extraído da PCA. Editável:</span>
                 <textarea
-                  rows={5}
+                  rows={6}
                   value={capacidadesTecnicas}
                   onChange={(e) => setCapacidadesTecnicas(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 text-xs"
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/20 text-xs"
                 />
               </div>
               <div>
                 <label className="font-bold text-blue-800 block mb-1">Capacidades Básicas (PCA)</label>
+                <span className="text-[10px] text-slate-500 block mb-1">Extraído da PCA. Editável:</span>
                 <textarea
-                  rows={5}
+                  rows={6}
                   value={capacidadesBasicas}
                   onChange={(e) => setCapacidadesBasicas(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 text-xs"
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/20 text-xs"
                 />
               </div>
               <div>
                 <label className="font-bold text-blue-800 block mb-1">Capacidades Socioemocionais</label>
+                <span className="text-[10px] text-slate-500 block mb-1">Extraído da PCA. Editável:</span>
                 <textarea
-                  rows={5}
+                  rows={6}
                   value={capacidadesSocioemocionais}
                   onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 text-xs"
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/20 text-xs"
                 />
               </div>
             </div>
@@ -319,8 +473,6 @@ export default function CriarPEUCPage() {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 text-xs">
           <div className="flex justify-between items-center border-b pb-2">
             <h2 className="text-sm font-bold text-blue-900 uppercase">3. Situação de Aprendizagem</h2>
-            
-            {/* BOTÃO INTEGRAÇÃO GEMINI */}
             <button
               type="button"
               onClick={gerarSituacaoComGemini}
@@ -372,7 +524,7 @@ export default function CriarPEUCPage() {
               rows={3}
               value={contextualizacao}
               onChange={(e) => setContextualizacao(e.target.value)}
-              placeholder="Clique em 'Gerar com Gemini' acima para preencher automaticamente ou digite manualmente..."
+              placeholder="Clique em 'Gerar com Gemini' acima para preencher automaticamente ou digite..."
               className="w-full border p-2 rounded"
             />
           </div>
@@ -383,7 +535,7 @@ export default function CriarPEUCPage() {
               rows={3}
               value={desafio}
               onChange={(e) => setDesafio(e.target.value)}
-              placeholder="Clique em 'Gerar com Gemini' acima para preencher automaticamente ou digite manualmente..."
+              placeholder="Clique em 'Gerar com Gemini' acima para preencher automaticamente ou digite..."
               className="w-full border p-2 rounded"
             />
           </div>
