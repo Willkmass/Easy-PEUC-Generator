@@ -1,4 +1,4 @@
-'use client';
+ 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -49,15 +49,17 @@ export default function CriarPEUCPage() {
     }
   ]);
 
-  // Função para formatar capacidades (caso venham como array ou texto)
-  const formatarTexto = (val: any) => {
+  // Função para formatar texto proveniente de arrays ou objetos
+  const formatarTexto = (val: any): string => {
     if (!val) return '';
-    if (Array.isArray(val)) return val.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n');
+    if (Array.isArray(val)) {
+      return val.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n');
+    }
     if (typeof val === 'object') return JSON.stringify(val, null, 2);
     return String(val);
   };
 
-  // FUNÇÃO PRINCIPAL: Carrega exatamente como a aba de Cursos e UCs
+  // FUNÇÃO PRINCIPAL: Carrega exatamente em sintonia com a aba Cursos e UCs
   const carregarDadosCursosEUCs = async () => {
     setCarregando(true);
     let cursosEncontrados: any[] = [];
@@ -77,10 +79,31 @@ export default function CriarPEUCPage() {
       console.warn('Busca no Supabase falhou, tentando localStorage:', e);
     }
 
-    // 2. Se não encontrou no Supabase ou quer varrer o localStorage (mesmo padrão da aba Cursos/UCs)
-    if (cursosEncontrados.length === 0) {
-      try {
-        // Varre todas as chaves salvas no localStorage
+    // 2. Leitura no localStorage focando na chave oficial 'cursos_peuc' e fallback genérico
+    try {
+      const chavesRelevantes = ['cursos_peuc', 'pcas_salvos', 'cursos'];
+      
+      chavesRelevantes.forEach((chave) => {
+        const itemStr = localStorage.getItem(chave);
+        if (itemStr) {
+          try {
+            const parsed = JSON.parse(itemStr);
+            if (Array.isArray(parsed)) {
+              cursosEncontrados = [...cursosEncontrados, ...parsed];
+            } else if (parsed && typeof parsed === 'object') {
+              if (parsed.cursos || parsed.pcas || parsed.data) {
+                const arr = parsed.cursos || parsed.pcas || parsed.data;
+                if (Array.isArray(arr)) cursosEncontrados = [...cursosEncontrados, ...arr];
+              } else {
+                cursosEncontrados.push(parsed);
+              }
+            }
+          } catch (e) {}
+        }
+      });
+
+      // Varredura adicional para chaves dinâmicas se ainda vazio
+      if (cursosEncontrados.length === 0) {
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key) {
@@ -89,35 +112,29 @@ export default function CriarPEUCPage() {
               try {
                 const parsed = JSON.parse(itemStr);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                  // Verifica se tem estrutura de curso/UC
-                  if (parsed[0].nome || parsed[0].nome_curso || parsed[0].ucs || parsed[0].unidades_curriculares) {
+                  if (parsed[0].nome || parsed[0].nomeCurso || parsed[0].nome_curso || parsed[0].ucs || parsed[0].unidadesCurriculares) {
                     cursosEncontrados = [...cursosEncontrados, ...parsed];
                   }
-                } else if (parsed && typeof parsed === 'object') {
-                  if (parsed.cursos || parsed.pcas || parsed.data) {
-                    const arr = parsed.cursos || parsed.pcas || parsed.data;
-                    if (Array.isArray(arr)) cursosEncontrados = [...cursosEncontrados, ...arr];
-                  } else if (parsed.nome || parsed.nome_curso) {
-                    cursosEncontrados.push(parsed);
-                  }
+                } else if (parsed && typeof parsed === 'object' && (parsed.nome || parsed.nomeCurso || parsed.nome_curso)) {
+                  cursosEncontrados.push(parsed);
                 }
               } catch (err) {}
             }
           }
         }
-      } catch (err) {
-        console.error('Erro ao ler localStorage:', err);
       }
+    } catch (err) {
+      console.error('Erro ao ler localStorage:', err);
     }
 
     // 3. Normalização flexível dos cursos
     const cursosFormatados = cursosEncontrados
       .map((c) => {
         if (!c) return null;
-        const nome = c.nome || c.nome_curso || c.curso || c.titulo;
+        const nome = c.nome || c.nomeCurso || c.nome_curso || c.curso || c.titulo;
         if (!nome) return null;
 
-        const ucsBrutas = c.ucs || c.unidades_curriculares || c.unidadesCurriculares || c.unidades || [];
+        const ucsBrutas = c.unidadesCurriculares || c.unidades_curriculares || c.ucs || c.unidades || [];
 
         return {
           ...c,
@@ -128,7 +145,7 @@ export default function CriarPEUCPage() {
       })
       .filter(Boolean);
 
-    // Remove duplicados por nome
+    // Remove duplicados pelo nome do curso
     const cursosUnicos = cursosFormatados.filter(
       (curso, index, self) => index === self.findIndex((t) => t.nome === curso.nome)
     );
@@ -175,7 +192,7 @@ export default function CriarPEUCPage() {
   // Quando o usuário troca de UC
   const aoMudarUC = (nomeUC: string) => {
     const ucEncontrada = ucsDisponiveis.find(
-      (u) => (u.nome || u.nome_uc || u.unidade || u.titulo) === nomeUC
+      (u) => (u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo) === nomeUC
     );
     if (ucEncontrada) {
       aplicarUC(ucEncontrada);
@@ -184,18 +201,27 @@ export default function CriarPEUCPage() {
 
   // Preenche os campos da UC selecionada
   const aplicarUC = (uc: any) => {
-    setUcSelecionada(uc.nome || uc.nome_uc || uc.unidade || uc.titulo || '');
+    setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
     setUcCargaHoraria(uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '');
     setModulo(uc.modulo || uc.modulo_nome || '');
 
-    // Extração das Capacidades e Objetivos
+    // Extração flexível de Capacidades e Objetivos
     const caps = uc.capacidades || {};
-    setCapacidadesTecnicas(formatarTexto(caps.tecnicas || uc.capacidades_tecnicas || uc.capacidadesTecnicas));
-    setCapacidadesBasicas(formatarTexto(caps.basicas || uc.capacidades_basicas || uc.capacidadesBasicas));
-    setCapacidadesSocioemocionais(
-      formatarTexto(caps.socioemocionais || uc.capacidades_socioemocionais || uc.capacidadesSocioemocionais)
-    );
-    setObjetivoGeral(formatarTexto(caps.objetivo || uc.objetivo_geral || uc.objetivo));
+    
+    // Suporte para quando capacidades é um objeto ou array de strings
+    if (typeof caps === 'object' && !Array.isArray(caps)) {
+      setCapacidadesTecnicas(formatarTexto(caps.tecnicas || uc.capacidades_tecnicas || uc.capacidadesTecnicas));
+      setCapacidadesBasicas(formatarTexto(caps.basicas || uc.capacidades_basicas || uc.capacidadesBasicas));
+      setCapacidadesSocioemocionais(
+        formatarTexto(caps.socioemocionais || uc.capacidades_socioemocionais || uc.capacidadesSocioemocionais)
+      );
+    } else {
+      setCapacidadesTecnicas(formatarTexto(caps || uc.capacidades_tecnicas || uc.capacidadesTecnicas));
+      setCapacidadesBasicas(formatarTexto(uc.capacidades_basicas || uc.capacidadesBasicas));
+      setCapacidadesSocioemocionais(formatarTexto(uc.capacidades_socioemocionais || uc.capacidadesSocioemocionais));
+    }
+
+    setObjetivoGeral(formatarTexto(caps.objetivo || uc.objetivo_geral || uc.objetivo || uc.conhecimentos));
     setCompetencias(formatarTexto(caps.competencia || uc.competencias || uc.competencia));
   };
 
@@ -294,13 +320,13 @@ export default function CriarPEUCPage() {
       salvas.unshift(novaPEUC);
       localStorage.setItem('peucs_salvas', JSON.stringify(salvas));
     } catch (err) {
-      console.error('Erro local:', err);
+      console.error('Erro ao salvar localmente:', err);
     }
 
     try {
       await supabase.from('peucs').insert([novaPEUC]);
     } catch (err) {
-      console.warn('Salvo localmente.');
+      console.warn('Erro Supabase, mantido salvo localmente.');
     }
 
     router.push(`/peuc/visualizar/${novaPEUC.id}`);
@@ -413,7 +439,7 @@ export default function CriarPEUCPage() {
                     <option value="">Selecione um curso com UCs</option>
                   ) : (
                     ucsDisponiveis.map((u, i) => {
-                      const nomeUC = u.nome || u.nome_uc || u.unidade || u.titulo || `UC #${i + 1}`;
+                      const nomeUC = u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo || `UC #${i + 1}`;
                       return (
                         <option key={i} value={nomeUC}>
                           {nomeUC}
@@ -732,9 +758,9 @@ export default function CriarPEUCPage() {
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-95 text-white font-black py-4 px-10 rounded-2xl shadow-2xl text-sm transition transform hover:-translate-y-0.5"
+              className="w-full md:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-sm px-8 py-4 rounded-2xl shadow-xl transition transform hover:scale-[1.01]"
             >
-              Salvar e Gerar PEUC Completa
+              💾 Salvar Plano de Ensino (PEUC)
             </button>
           </div>
         </form>
