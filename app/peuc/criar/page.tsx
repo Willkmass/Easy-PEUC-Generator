@@ -25,24 +25,61 @@ export default function CriarPEUCPage() {
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
-  // 1. Carrega cursos cadastrados no Supabase
+  // 1. Carrega cursos cadastrados (Supabase + localStorage)
   useEffect(() => {
     async function carregarCursos() {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('cursos')
-        .select('*')
-        .order('nome', { ascending: true });
 
-      if (!error && data) {
-        setCursos(data);
+      // Leitura via Supabase
+      let cursosSupabase: Curso[] = [];
+      try {
+        const { data, error } = await supabase
+          .from('cursos')
+          .select('*')
+          .order('nome', { ascending: true });
+
+        if (!error && data) {
+          cursosSupabase = data;
+        }
+      } catch (err) {
+        console.warn('Falha ao conectar ao Supabase para buscar cursos:', err);
       }
+
+      // Leitura via localStorage
+      let cursosLocais: Curso[] = [];
+      try {
+        const localRaw = localStorage.getItem('cursos_peuc');
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          cursosLocais = parsed.map((item: any, idx: number) => ({
+            id: item.id ? String(item.id) : `local-${idx}`,
+            nome: item.nomeCurso || item.nome || 'Curso Sem Nome',
+            categoria: item.categoria || 'Geral',
+            carga_horaria_total: item.cargaHorariaTotal || '',
+            created_at: item.criadoEm || new Date().toISOString(),
+          }));
+        }
+      } catch (err) {
+        console.error('Erro ao ler cursos do localStorage:', err);
+      }
+
+      // Mesclagem e desduplicação por ID/Nome
+      const mapa = new Map<string, Curso>();
+      [...cursosSupabase, ...cursosLocais].forEach((c) => {
+        const chave = c.id || c.nome;
+        if (!mapa.has(chave)) {
+          mapa.set(chave, c);
+        }
+      });
+
+      setCursos(Array.from(mapa.values()));
       setLoading(false);
     }
+
     carregarCursos();
   }, []);
 
-  // 2. Carrega UCs ao selecionar um Curso
+  // 2. Carrega UCs ao selecionar um Curso (Supabase + localStorage)
   useEffect(() => {
     async function carregarUCs() {
       if (!cursoSelecionadoId) {
@@ -52,16 +89,55 @@ export default function CriarPEUCPage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('unidades_curriculares')
-        .select('*')
-        .eq('curso_id', cursoSelecionadoId)
-        .order('numero', { ascending: true });
+      let ucsEncontradas: UnidadeCurricular[] = [];
 
-      if (!error && data) {
-        setUcs(data);
+      // A. Caso seja um curso do Supabase
+      if (!cursoSelecionadoId.startsWith('local-')) {
+        try {
+          const { data, error } = await supabase
+            .from('unidades_curriculares')
+            .select('*')
+            .eq('curso_id', cursoSelecionadoId)
+            .order('numero', { ascending: true });
+
+          if (!error && data) {
+            ucsEncontradas = data;
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar UCs do Supabase:', err);
+        }
       }
+
+      // B. Caso seja/esteja no localStorage
+      if (ucsEncontradas.length === 0) {
+        try {
+          const localRaw = localStorage.getItem('cursos_peuc');
+          if (localRaw) {
+            const parsed = JSON.parse(localRaw);
+            const cursoLocal = parsed.find(
+              (item: any) => String(item.id) === cursoSelecionadoId || item.nomeCurso === cursoSelecionadoId
+            );
+
+            if (cursoLocal && cursoLocal.unidadesCurriculares) {
+              ucsEncontradas = cursoLocal.unidadesCurriculares.map((uc: any, idx: number) => ({
+                id: uc.id || `uc-local-${idx}`,
+                curso_id: cursoSelecionadoId,
+                numero: uc.numero || idx + 1,
+                nome: uc.nomeUc || uc.nome || 'UC sem nome',
+                carga_horaria: uc.cargaHoraria || uc.carga_horaria || 0,
+                capacidades: uc.capacidades || [],
+                conhecimentos: uc.conhecimentos || [],
+              }));
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao ler UCs do localStorage:', err);
+        }
+      }
+
+      setUcs(ucsEncontradas);
     }
+
     carregarUCs();
   }, [cursoSelecionadoId]);
 
@@ -92,21 +168,32 @@ export default function CriarPEUCPage() {
     setSalvando(true);
     setMensagem(null);
 
-    try {
-      const { error } = await supabase.from('peucs').insert({
-        curso_id: cursoSelecionadoId,
-        unidade_curricular_id: ucSelecionadaId,
-        tipo_situacao_aprendizagem: tipoSituacao,
-        integra_outra_uc: integraOutraUC,
-        contextualizacao,
-        desafio,
-        resultados_esperados: resultadosEsperados,
-        capacidades_selecionadas: capacidadesSelecionadas,
-        conhecimentos_selecionados: conhecimentosSelecionados,
-        status: 'Concluído',
-      });
+    const peucPayload = {
+      id: Date.now().toString(),
+      curso_id: cursoSelecionadoId,
+      unidade_curricular_id: ucSelecionadaId,
+      tipo_situacao_aprendizagem: tipoSituacao,
+      integra_outra_uc: integraOutraUC,
+      contextualizacao,
+      desafio,
+      resultados_esperados: resultadosEsperados,
+      capacidades_selecionadas: capacidadesSelecionadas,
+      conhecimentos_selecionados: conhecimentosSelecionados,
+      status: 'Concluído',
+      created_at: new Date().toISOString()
+    };
 
-      if (error) throw error;
+    try {
+      // Gravação no Supabase (se válido)
+      if (!cursoSelecionadoId.startsWith('local-')) {
+        const { error } = await supabase.from('peucs').insert(peucPayload);
+        if (error) console.warn('Erro ao salvar no Supabase:', error);
+      }
+
+      // Backup de gravação LocalStorage
+      const peucsLocais = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
+      peucsLocais.push(peucPayload);
+      localStorage.setItem('peucs_salvas', JSON.stringify(peucsLocais));
 
       setMensagem({ tipo: 'sucesso', texto: 'PEUC elaborada e salva com sucesso!' });
     } catch (err: any) {
@@ -145,7 +232,7 @@ export default function CriarPEUCPage() {
                 <option value="">-- Selecione o Curso --</option>
                 {cursos.map((c) => (
                   <option key={c.id} value={c.id}>
-                    [{c.categoria}] {c.nome}
+                    [{c.categoria || 'Geral'}] {c.nome}
                   </option>
                 ))}
               </select>
@@ -165,7 +252,7 @@ export default function CriarPEUCPage() {
                 <option value="">-- Selecione a UC --</option>
                 {ucs.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.numero}. {u.nome} ({u.carga_horaria}h)
+                    {u.numero ? `${u.numero}. ` : ''}{u.nome} ({u.carga_horaria || 0}h)
                   </option>
                 ))}
               </select>
