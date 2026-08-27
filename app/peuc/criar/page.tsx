@@ -35,7 +35,14 @@ export default function CriarPEUCPage() {
   const [desafio, setDesafio] = useState('');
   const [resultadosEsperados, setResultadosEsperados] = useState('');
   const [criteriosQualidade, setCriteriosQualidade] = useState('');
-  const [gerandoIA, setGerandoIA] = useState(false);
+
+  // Widget Gemini Chat Flutuante
+  const [chatAberto, setChatAberto] = useState(false);
+  const [mensagensChat, setMensagensChat] = useState<{ role: 'user' | 'gemini'; texto: string }[]>([
+    { role: 'gemini', texto: 'Olá! Sou o Gemini. Como posso ajudar na construção da sua Situação de Aprendizagem hoje?' }
+  ]);
+  const [inputChat, setInputChat] = useState('');
+  const [enviandoChat, setEnviandoChat] = useState(false);
 
   // Plano de Aula
   const [planosAula, setPlanosAula] = useState([
@@ -49,7 +56,6 @@ export default function CriarPEUCPage() {
     }
   ]);
 
-  // Função para gerar automaticamente as lacunas de plano de aula
   const gerarLacunasAulas = (cargaHoraria: string) => {
     const ch = parseFloat(cargaHoraria);
     if (!isNaN(ch) && ch > 0) {
@@ -72,7 +78,6 @@ export default function CriarPEUCPage() {
     }
   }, [ucCargaHoraria]);
 
-  // Formatador auxiliar de textos
   const formatarTexto = (val: any): string => {
     if (!val) return '';
     if (Array.isArray(val)) {
@@ -82,7 +87,6 @@ export default function CriarPEUCPage() {
     return String(val);
   };
 
-  // Carrega matrizes e UCs
   const carregarDadosCursosEUCs = async () => {
     setCarregando(true);
     let cursosEncontrados: any[] = [];
@@ -247,31 +251,37 @@ export default function CriarPEUCPage() {
     setCompetencias('');
   };
 
-  const gerarSituacaoComGemini = async () => {
-    setGerandoIA(true);
+  // Envio de mensagem para a janela flutuante do Gemini
+  const enviarMensagemGemini = async (promptCustomizado?: string) => {
+    const promptFinal = promptCustomizado || inputChat;
+    if (!promptFinal.trim() || enviandoChat) return;
+
+    const novasMensagens = [...mensagensChat, { role: 'user' as const, texto: promptFinal }];
+    setMensagensChat(novasMensagens);
+    if (!promptCustomizado) setInputChat('');
+    setEnviandoChat(true);
+
     try {
       const res = await fetch('/api/gerar-situacao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          prompt: promptFinal,
           curso: cursoSelecionado,
           uc: ucSelecionada,
           tipoSituacao,
-          capacidades: `Capacidades Técnicas:\n${capacidadesTecnicas}\n\nCapacidades Básicas:\n${capacidadesBasicas}\n\nCapacidades Socioemocionais:\n${capacidadesSocioemocionais}`
+          capacidades: `Técnicas: ${capacidadesTecnicas} | Básicas: ${capacidadesBasicas} | Socioemocionais: ${capacidadesSocioemocionais}`
         })
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro na requisição');
 
-      if (data.contextualizacao) setContextualizacao(data.contextualizacao);
-      if (data.desafio) setDesafio(data.desafio);
-      if (data.resultados_esperados) setResultadosEsperados(data.resultados_esperados);
-      if (data.criterios_qualidade) setCriteriosQualidade(data.criterios_qualidade);
+      setMensagensChat([...novasMensagens, { role: 'gemini', texto: data.resposta || data.contextualizacao || 'Sem resposta.' }]);
     } catch (err: any) {
-      alert('Erro ao gerar com o Gemini: ' + err.message);
+      setMensagensChat([...novasMensagens, { role: 'gemini', texto: `⚠️ Erro: ${err.message}` }]);
     } finally {
-      setGerandoIA(false);
+      setEnviandoChat(false);
     }
   };
 
@@ -344,7 +354,7 @@ export default function CriarPEUCPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 pb-24 selection:bg-purple-500 selection:text-white font-sans">
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-24 selection:bg-purple-500 selection:text-white font-sans relative">
       {/* HEADER */}
       <header className="relative overflow-hidden bg-slate-900 border-b border-indigo-500/10 py-8 px-6 shadow-xl mb-10">
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent pointer-events-none" />
@@ -361,9 +371,6 @@ export default function CriarPEUCPage() {
             <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
               Criar Plano de Ensino por Unidade Curricular
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
-              Gere planos alinhados com a matriz curricular de forma ágil e com suporte de inteligência artificial.
-            </p>
           </div>
           <button
             type="button"
@@ -379,26 +386,13 @@ export default function CriarPEUCPage() {
         <form onSubmit={salvarPEUC} className="space-y-8">
           
           {/* SEÇÃO 1: IDENTIFICAÇÃO GERAL */}
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-5 mb-6 border-b border-slate-800/80 gap-3">
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 font-black text-xs border border-indigo-500/30">
                   01
                 </span>
                 <h2 className="text-lg font-bold text-slate-100">Identificação Geral</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full font-medium">
-                  {carregando ? 'Carregando PCAs...' : `${listaCursos.length} Curso(s) Encontrado(s)`}
-                </span>
-                <button
-                  type="button"
-                  onClick={carregarDadosCursosEUCs}
-                  className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1 rounded-full font-medium transition active:scale-95"
-                  title="Atualizar lista de cursos do banco/localStorage"
-                >
-                  🔄 Recarregar Cursos
-                </button>
               </div>
             </div>
 
@@ -408,7 +402,7 @@ export default function CriarPEUCPage() {
                 <select
                   value={cursoSelecionado}
                   onChange={(e) => aoMudarCurso(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl outline-none"
                   required
                 >
                   {carregando ? (
@@ -431,7 +425,7 @@ export default function CriarPEUCPage() {
                   type="text"
                   value={modalidade}
                   onChange={(e) => setModalidade(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl font-medium focus:ring-2 focus:ring-slate-700 outline-none"
+                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl outline-none"
                 />
               </div>
 
@@ -441,7 +435,7 @@ export default function CriarPEUCPage() {
                   type="text"
                   value={modulo}
                   onChange={(e) => setModulo(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl font-medium focus:ring-2 focus:ring-slate-700 outline-none"
+                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl outline-none"
                 />
               </div>
 
@@ -450,21 +444,17 @@ export default function CriarPEUCPage() {
                 <select
                   value={ucSelecionada}
                   onChange={(e) => aoMudarUC(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl outline-none"
                   required
                 >
-                  {ucsDisponiveis.length === 0 ? (
-                    <option value="">Selecione um curso com UCs</option>
-                  ) : (
-                    ucsDisponiveis.map((u, i) => {
-                      const nomeUC = u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo || `UC #${i + 1}`;
-                      return (
-                        <option key={i} value={nomeUC}>
-                          {nomeUC}
-                        </option>
-                      );
-                    })
-                  )}
+                  {ucsDisponiveis.map((u, i) => {
+                    const nomeUC = u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo || `UC #${i + 1}`;
+                    return (
+                      <option key={i} value={nomeUC}>
+                        {nomeUC}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -474,7 +464,7 @@ export default function CriarPEUCPage() {
                   type="text"
                   value={ucCargaHoraria}
                   onChange={(e) => setUcCargaHoraria(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl font-medium focus:ring-2 focus:ring-slate-700 outline-none"
+                  className="w-full bg-slate-950/40 border border-slate-800 text-slate-300 p-3 rounded-xl outline-none"
                 />
               </div>
 
@@ -485,7 +475,7 @@ export default function CriarPEUCPage() {
                   value={docente}
                   onChange={(e) => setDocente(e.target.value)}
                   placeholder="Nome do docente..."
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl outline-none"
                   required
                 />
               </div>
@@ -493,7 +483,7 @@ export default function CriarPEUCPage() {
           </section>
 
           {/* SEÇÃO 2: OBJETIVOS E CAPACIDADES */}
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
             <div className="flex items-center gap-3 pb-5 mb-6 border-b border-slate-800/80">
               <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 font-black text-xs border border-purple-500/30">
                 02
@@ -508,7 +498,7 @@ export default function CriarPEUCPage() {
                   rows={2}
                   value={objetivoGeral}
                   onChange={(e) => setObjetivoGeral(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition resize-y"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl outline-none"
                 />
               </div>
 
@@ -518,48 +508,38 @@ export default function CriarPEUCPage() {
                   rows={2}
                   value={competencias}
                   onChange={(e) => setCompetencias(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition resize-y"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl outline-none"
                 />
               </div>
 
-              {/* TRES MINI-CARDS LADO A LADO */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
                 <div className="bg-slate-950/60 border border-indigo-500/20 p-4 rounded-xl space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">Capacidades Técnicas</span>
-                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                  </div>
+                  <span className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block">Capacidades Técnicas</span>
                   <textarea
                     rows={6}
                     value={capacidadesTecnicas}
                     onChange={(e) => setCapacidadesTecnicas(e.target.value)}
-                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs leading-relaxed focus:ring-2 focus:ring-indigo-500 outline-none resize-y"
+                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs outline-none"
                   />
                 </div>
 
                 <div className="bg-slate-950/60 border border-purple-500/20 p-4 rounded-xl space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Capacidades Básicas</span>
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
-                  </div>
+                  <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider block">Capacidades Básicas</span>
                   <textarea
                     rows={6}
                     value={capacidadesBasicas}
                     onChange={(e) => setCapacidadesBasicas(e.target.value)}
-                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs leading-relaxed focus:ring-2 focus:ring-purple-500 outline-none resize-y"
+                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs outline-none"
                   />
                 </div>
 
                 <div className="bg-slate-950/60 border border-emerald-500/20 p-4 rounded-xl space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Capacidades Socioemocionais</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  </div>
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block">Capacidades Socioemocionais</span>
                   <textarea
                     rows={6}
                     value={capacidadesSocioemocionais}
                     onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
-                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs leading-relaxed focus:ring-2 focus:ring-emerald-500 outline-none resize-y"
+                    className="w-full bg-slate-900/90 border border-slate-800 text-slate-200 p-3 rounded-lg text-xs outline-none"
                   />
                 </div>
               </div>
@@ -567,8 +547,8 @@ export default function CriarPEUCPage() {
           </section>
 
           {/* SEÇÃO 3: SITUAÇÃO DE APRENDIZAGEM */}
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60 text-xs">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 mb-6 border-b border-slate-800/80">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm text-xs">
+            <div className="flex justify-between items-center pb-5 mb-6 border-b border-slate-800/80">
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-pink-600/20 text-pink-400 font-black text-xs border border-pink-500/30">
                   03
@@ -577,21 +557,14 @@ export default function CriarPEUCPage() {
               </div>
               <button
                 type="button"
-                onClick={gerarSituacaoComGemini}
-                disabled={gerandoIA}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-md hover:shadow-purple-500/10 transition active:scale-95 disabled:opacity-50 text-xs"
+                onClick={() => {
+                  setChatAberto(true);
+                  enviarMensagemGemini(`Gere uma ${tipoSituacao} para a UC ${ucSelecionada} baseada nas capacidades informadas.`);
+                }}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-md transition active:scale-95 text-xs"
               >
-                {gerandoIA ? (
-                  <>
-                    <span className="animate-spin h-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />
-                    <span>Gerando com Gemini...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>✨</span>
-                    <span>Gerar com Gemini IA</span>
-                  </>
-                )}
+                <span>✨</span>
+                <span>Abrir Chat Gemini</span>
               </button>
             </div>
 
@@ -602,7 +575,7 @@ export default function CriarPEUCPage() {
                   <select
                     value={tipoSituacao}
                     onChange={(e) => setTipoSituacao(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl font-medium focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition"
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl outline-none"
                   >
                     <option value="Situação-Problema">Situação-Problema</option>
                     <option value="Estudo de Caso">Estudo de Caso</option>
@@ -617,7 +590,7 @@ export default function CriarPEUCPage() {
                     type="text"
                     value={numAulas}
                     onChange={(e) => setNumAulas(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none"
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl outline-none"
                   />
                 </div>
 
@@ -627,7 +600,7 @@ export default function CriarPEUCPage() {
                     type="text"
                     value={numSa}
                     onChange={(e) => setNumSa(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none"
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3 rounded-xl outline-none"
                   />
                 </div>
               </div>
@@ -638,8 +611,8 @@ export default function CriarPEUCPage() {
                   rows={3}
                   value={contextualizacao}
                   onChange={(e) => setContextualizacao(e.target.value)}
-                  placeholder="Gerado pela IA ou preenchido manualmente..."
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition resize-y"
+                  placeholder="Cole ou digite aqui..."
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl outline-none resize-y"
                 />
               </div>
 
@@ -650,7 +623,7 @@ export default function CriarPEUCPage() {
                   value={desafio}
                   onChange={(e) => setDesafio(e.target.value)}
                   placeholder="Desafio da SA..."
-                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none transition resize-y"
+                  className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl outline-none resize-y"
                 />
               </div>
 
@@ -661,7 +634,7 @@ export default function CriarPEUCPage() {
                     rows={3}
                     value={resultadosEsperados}
                     onChange={(e) => setResultadosEsperados(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition resize-y"
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl outline-none resize-y"
                   />
                 </div>
 
@@ -671,7 +644,7 @@ export default function CriarPEUCPage() {
                     rows={3}
                     value={criteriosQualidade}
                     onChange={(e) => setCriteriosQualidade(e.target.value)}
-                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition resize-y"
+                    className="w-full bg-slate-950/80 border border-slate-800 text-slate-100 p-3.5 rounded-xl outline-none resize-y"
                   />
                 </div>
               </div>
@@ -679,7 +652,7 @@ export default function CriarPEUCPage() {
           </section>
 
           {/* SEÇÃO 4: PLANO DE AULA */}
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm transition hover:border-slate-700/60">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
             <div className="flex justify-between items-center pb-5 mb-6 border-b border-slate-800/80">
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 font-black text-xs border border-emerald-500/30">
@@ -690,7 +663,7 @@ export default function CriarPEUCPage() {
               <button
                 type="button"
                 onClick={adicionarLinhaAula}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition active:scale-95 shadow-md shadow-emerald-900/20"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition active:scale-95 shadow-md"
               >
                 + Adicionar Aula
               </button>
@@ -698,10 +671,7 @@ export default function CriarPEUCPage() {
 
             <div className="space-y-4">
               {planosAula.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="border border-slate-800/80 p-4 rounded-xl bg-slate-950/60 space-y-3 text-xs"
-                >
+                <div key={idx} className="border border-slate-800/80 p-4 rounded-xl bg-slate-950/60 space-y-3 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-1 rounded-md text-[11px]">
                       Aula #{idx + 1}
@@ -710,89 +680,127 @@ export default function CriarPEUCPage() {
                       <button
                         type="button"
                         onClick={() => removerLinhaAula(idx)}
-                        className="text-rose-400 hover:text-rose-300 font-semibold text-[11px] transition"
+                        className="text-rose-400 hover:text-rose-300 font-semibold text-xs"
                       >
                         Remover
                       </button>
                     )}
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nº Aulas</label>
-                      <input
-                        type="text"
-                        value={item.numAulas}
-                        onChange={(e) => atualizarLinhaAula(idx, 'numAulas', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Conhecimentos</label>
-                      <input
-                        type="text"
-                        value={item.conhecimentos}
-                        onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Capacidades</label>
-                      <input
-                        type="text"
-                        value={item.capacidades}
-                        onChange={(e) => atualizarLinhaAula(idx, 'capacidades', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Estratégias</label>
-                      <input
-                        type="text"
-                        value={item.estrategias}
-                        onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Recursos</label>
-                      <input
-                        type="text"
-                        value={item.recursos}
-                        onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Instrumentos</label>
-                      <input
-                        type="text"
-                        value={item.instrumentos}
-                        onChange={(e) => atualizarLinhaAula(idx, 'instrumentos', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 text-slate-100 p-2.5 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <textarea
+                      placeholder="Conhecimentos..."
+                      value={item.conhecimentos}
+                      onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none"
+                    />
+                    <textarea
+                      placeholder="Estratégias..."
+                      value={item.estrategias}
+                      onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none"
+                    />
+                    <textarea
+                      placeholder="Recursos / Instrumentos..."
+                      value={item.recursos}
+                      onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none"
+                    />
                   </div>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* BOTÃO SALVAR */}
-          <div className="flex justify-end pt-4">
-            <button
-              type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition active:scale-95 text-xs"
-            >
-              Salvar Plano de Ensino (PEUC)
-            </button>
-          </div>
+          <button
+            type="submit"
+            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-xl transition active:scale-[0.99] text-sm tracking-wide"
+          >
+            Salvar Plano PEUC
+          </button>
         </form>
+      </div>
+
+      {/* WIDGET FLUTUANTE DO GEMINI CHAT */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {!chatAberto ? (
+          <button
+            onClick={() => setChatAberto(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold px-4 py-3 rounded-full shadow-2xl hover:scale-105 transition active:scale-95 border border-purple-400/30"
+          >
+            <span className="text-lg">✨</span>
+            <span className="text-xs">Assistente Gemini</span>
+          </button>
+        ) : (
+          <div className="w-80 sm:w-96 h-[480px] bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4">
+            {/* Header do Chat */}
+            <div className="bg-slate-950 p-3.5 border-b border-slate-800 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-bold text-xs text-purple-300">Gemini IA Assistant</span>
+              </div>
+              <button
+                onClick={() => setChatAberto(false)}
+                className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Mensagens */}
+            <div className="flex-1 p-3 overflow-y-auto space-y-3 text-xs bg-slate-950/40">
+              {mensagensChat.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] p-3 rounded-xl leading-relaxed select-text ${
+                      msg.role === 'user'
+                        ? 'bg-purple-600 text-white rounded-br-none'
+                        : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-bl-none'
+                    }`}
+                  >
+                    {msg.texto}
+                  </div>
+                  {msg.role === 'gemini' && (
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(msg.texto)}
+                      className="text-[10px] text-purple-400 hover:underline mt-1 self-start"
+                    >
+                      📋 Copiar resposta
+                    </button>
+                  )}
+                </div>
+              ))}
+              {enviandoChat && (
+                <div className="text-slate-400 text-[11px] italic animate-pulse">
+                  Gemini está digitando...
+                </div>
+              )}
+            </div>
+
+            {/* Input do Chat */}
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
+              <input
+                type="text"
+                value={inputChat}
+                onChange={(e) => setInputChat(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && enviarMensagemGemini()}
+                placeholder="Pergunte ou peça ideias ao Gemini..."
+                className="flex-1 bg-slate-900 border border-slate-800 text-slate-100 text-xs px-3 py-2 rounded-xl outline-none focus:border-purple-500"
+              />
+              <button
+                type="button"
+                onClick={() => enviarMensagemGemini()}
+                disabled={enviandoChat}
+                className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-2 rounded-xl text-xs disabled:opacity-50"
+              >
+                Enviar
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
