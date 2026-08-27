@@ -153,175 +153,168 @@ export default function ImportarPCAPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:p-10 space-y-10">
+    <div className="min-h-screen bg-[#070913] text-slate-100 p-6 md:p-10 space-y-8">
       {/* Header Principal */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            Importação de PCA & Ferramentas
-          </h1>
-          <p className="text-base text-slate-500 mt-1">
-            Gerencie PDFs extensos e faça a ingestão inteligente de Planos de Curso.
-          </p>
+      <div className="space-y-2">
+        <div className="flex gap-2 mb-2">
+          <span className="text-[11px] font-bold tracking-wider uppercase bg-[#181c33] text-indigo-300 px-3 py-1 rounded-full border border-indigo-900/40">
+            EASY PEUC GENERATOR
+          </span>
+          <span className="text-[11px] font-bold tracking-wider uppercase bg-[#14182b] text-slate-400 px-3 py-1 rounded-full border border-slate-800">
+            Importador PCA
+          </span>
         </div>
+        <h1 className="text-3xl font-black text-white tracking-tight">
+          Importação de PCA & Ferramentas
+        </h1>
+        <p className="text-sm text-slate-400">
+          Gerencie PDFs extensos e faça a ingestão de Planos de Curso (SENAI-PR).
+        </p>
       </div>
 
       {/* FERRAMENTA DE DIVISÃO DE PDF */}
-      <div className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/30 border border-amber-200/80 rounded-2xl shadow-sm overflow-hidden transition-all">
-        <div className="p-6 md:p-8 space-y-6">
-          <div className="flex items-center justify-between border-b border-amber-200/60 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold text-lg">
-                ✂️
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-amber-950">Divisor de PDF Extenso</h2>
-                <p className="text-sm text-amber-700/80">
-                  Corte ou fracione documentos grandes antes de iniciar a importação de dados.
-                </p>
-              </div>
-            </div>
-            <span className="text-xs font-semibold bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full border border-amber-200">
-              Utilitário
-            </span>
+      <div className="bg-[#0f1222] border border-slate-800/80 rounded-xl p-6 space-y-6 shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">Ferramenta: Divisor de PDF Extenso</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Use esta ferramenta para cortar um PDF grande antes de realizar a importação.
+            </p>
           </div>
+          <span className="text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full">
+            Utilitário
+          </span>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Selecione o PDF Extenso:
-              </label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={handleCarregarPdfParaDividir}
-                className="block w-full text-sm text-slate-600 border border-amber-200 rounded-xl bg-white p-2.5 shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 transition-all cursor-pointer"
-              />
-            </div>
-
-            {infoPdf && (
-              <div className="bg-white p-4 rounded-xl border border-amber-200/80 shadow-sm space-y-1">
-                <p className="font-semibold text-slate-800 truncate text-sm">{infoPdf.nome}</p>
-                <p className="text-xs text-slate-500">
-                  Total de Páginas: <span className="font-bold text-amber-700 text-sm">{infoPdf.totalPaginas}</span>
-                </p>
-              </div>
-            )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+              Selecione o PDF Extenso:
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleCarregarPdfParaDividir}
+              className="block w-full text-xs text-slate-300 border border-slate-800 rounded-lg bg-[#161a30] p-2.5 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"
+            />
           </div>
 
           {infoPdf && (
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-xl border border-amber-200/60 space-y-6 shadow-sm">
-              <div className="flex flex-wrap gap-6 border-b border-slate-100 pb-4">
-                <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="modo"
-                    value="intervalo"
-                    checked={modoDivisao === 'intervalo'}
-                    onChange={() => setModoDivisao('intervalo')}
-                    className="w-4 h-4 text-amber-600 focus:ring-amber-500 border-slate-300"
-                  />
-                  Extrair Intervalo Específico
-                </label>
-                <label className="flex items-center gap-2.5 text-sm font-semibold text-slate-700 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="modo"
-                    value="blocos"
-                    checked={modoDivisao === 'blocos'}
-                    onChange={() => setModoDivisao('blocos')}
-                    className="w-4 h-4 text-amber-600 focus:ring-amber-500 border-slate-300"
-                  />
-                  Dividir em Partes Igualitárias
-                </label>
-              </div>
-
-              {modoDivisao === 'intervalo' ? (
-                <div className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-600">
-                  <span>Extrair da página</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={infoPdf.totalPaginas}
-                    value={paginaInicio}
-                    onChange={(e) => setPaginaInicio(e.target.value)}
-                    className="w-24 border border-slate-300 p-2 rounded-lg text-center font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 outline-none"
-                  />
-                  <span>até a página</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={infoPdf.totalPaginas}
-                    value={paginaFim}
-                    onChange={(e) => setPaginaFim(e.target.value)}
-                    className="w-24 border border-slate-300 p-2 rounded-lg text-center font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 outline-none"
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-600">
-                  <span>Dividir arquivo a cada</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={infoPdf.totalPaginas}
-                    value={tamanhoBloco}
-                    onChange={(e) => setTamanhoBloco(e.target.value)}
-                    className="w-24 border border-slate-300 p-2 rounded-lg text-center font-semibold text-slate-800 focus:ring-2 focus:ring-amber-500 outline-none"
-                  />
-                  <span>páginas</span>
-                </div>
-              )}
-
-              <button
-                onClick={handleExecutarDivisao}
-                disabled={processandoPdf}
-                className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-6 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:from-amber-700 hover:to-amber-800 focus:ring-2 focus:ring-amber-500 disabled:opacity-50 transition-all cursor-pointer"
-              >
-                {processandoPdf ? 'Processando Divisão...' : 'Gerar Arquivos Divididos'}
-              </button>
-            </div>
-          )}
-
-          {arquivosGerados.length > 0 && (
-            <div className="bg-white p-5 rounded-xl border border-amber-200/80 space-y-4 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-700">Arquivos Prontos para Download:</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {arquivosGerados.map((arq, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 border border-slate-200 rounded-xl bg-slate-50/50 text-xs hover:border-slate-300 transition-all">
-                    <div className="pr-2">
-                      <p className="font-bold text-slate-800 truncate max-w-[200px]">{arq.nome}</p>
-                      <p className="text-slate-500 text-[11px] mt-0.5">{arq.totalPaginas} página(s)</p>
-                    </div>
-                    <a
-                      href={arq.blobUrl}
-                      download={arq.nome}
-                      className="bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700 shadow-sm transition-all whitespace-nowrap"
-                    >
-                      Baixar
-                    </a>
-                  </div>
-                ))}
-              </div>
+            <div className="bg-[#161a30] p-3 rounded-lg border border-slate-800 text-sm space-y-1">
+              <p className="font-bold text-white truncate">{infoPdf.nome}</p>
+              <p className="text-xs text-slate-400">
+                Total de Páginas: <span className="font-bold text-indigo-400">{infoPdf.totalPaginas}</span>
+              </p>
             </div>
           )}
         </div>
+
+        {infoPdf && (
+          <div className="bg-[#14172b] p-4 rounded-lg border border-slate-800 space-y-4">
+            <div className="flex gap-6 border-b border-slate-800 pb-3">
+              <label className="flex items-center gap-2 text-sm text-slate-300 font-medium cursor-pointer">
+                <input
+                  type="radio"
+                  name="modo"
+                  value="intervalo"
+                  checked={modoDivisao === 'intervalo'}
+                  onChange={() => setModoDivisao('intervalo')}
+                  className="accent-indigo-500"
+                />
+                Extrair Intervalo Específico
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-300 font-medium cursor-pointer">
+                <input
+                  type="radio"
+                  name="modo"
+                  value="blocos"
+                  checked={modoDivisao === 'blocos'}
+                  onChange={() => setModoDivisao('blocos')}
+                  className="accent-indigo-500"
+                />
+                Dividir em Partes Igualitárias
+              </label>
+            </div>
+
+            {modoDivisao === 'intervalo' ? (
+              <div className="flex items-center gap-3 text-sm text-slate-300">
+                <span>Extrair da página</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={infoPdf.totalPaginas}
+                  value={paginaInicio}
+                  onChange={(e) => setPaginaInicio(e.target.value)}
+                  className="w-20 bg-[#0b0d19] border border-slate-700 p-1.5 rounded text-center text-white font-semibold focus:outline-none focus:border-indigo-500"
+                />
+                <span>até a página</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={infoPdf.totalPaginas}
+                  value={paginaFim}
+                  onChange={(e) => setPaginaFim(e.target.value)}
+                  className="w-20 bg-[#0b0d19] border border-slate-700 p-1.5 rounded text-center text-white font-semibold focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 text-sm text-slate-300">
+                <span>Dividir arquivo a cada</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={infoPdf.totalPaginas}
+                  value={tamanhoBloco}
+                  onChange={(e) => setTamanhoBloco(e.target.value)}
+                  className="w-20 bg-[#0b0d19] border border-slate-700 p-1.5 rounded text-center text-white font-semibold focus:outline-none focus:border-indigo-500"
+                />
+                <span>páginas</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleExecutarDivisao}
+              disabled={processandoPdf}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg text-sm font-semibold disabled:bg-slate-800 disabled:text-slate-500 transition-colors"
+            >
+              {processandoPdf ? 'Processando Divisão...' : 'Gerar Arquivos Divididos'}
+            </button>
+          </div>
+        )}
+
+        {arquivosGerados.length > 0 && (
+          <div className="bg-[#14172b] p-4 rounded-lg border border-slate-800 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Arquivos Prontos para Download:</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {arquivosGerados.map((arq, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2.5 border border-slate-800 rounded-lg bg-[#0b0d19] text-xs">
+                  <div>
+                    <p className="font-bold text-slate-200 truncate max-w-[200px]">{arq.nome}</p>
+                    <p className="text-slate-500">{arq.totalPaginas} página(s)</p>
+                  </div>
+                  <a
+                    href={arq.blobUrl}
+                    download={arq.nome}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors"
+                  >
+                    Baixar
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ÁREA DE IMPORTAÇÃO */}
-      <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
-        <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
-            📥
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Importar PCA para a Plataforma</h2>
-            <p className="text-sm text-slate-500">Suba o arquivo PDF final para a IA extrair os módulos e competências.</p>
-          </div>
-        </div>
+      <div className="bg-[#0f1222] border border-slate-800/80 rounded-xl p-6 space-y-6 shadow-xl">
+        <h2 className="text-lg font-bold text-white border-b border-slate-800 pb-3">
+          Importar PCA para a Plataforma
+        </h2>
 
-        <form onSubmit={handleEnviarParaApi} className="space-y-6">
+        <form onSubmit={handleEnviarParaApi} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
               Selecione o(s) arquivo(s) PDF da PCA para processamento:
             </label>
             <input
@@ -330,59 +323,57 @@ export default function ImportarPCAPage() {
               multiple
               onChange={(e) => setArquivosImportacao(e.target.files)}
               disabled={carregandoImportacao}
-              className="block w-full text-sm text-slate-600 border border-slate-300 rounded-xl bg-slate-50 p-3 shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 transition-all cursor-pointer disabled:opacity-50"
+              className="block w-full text-xs text-slate-300 border border-slate-800 rounded-lg bg-[#161a30] p-2.5 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer disabled:opacity-50"
             />
           </div>
 
           <button
             type="submit"
             disabled={carregandoImportacao || !arquivosImportacao || arquivosImportacao.length === 0}
-            className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-semibold text-sm shadow-md hover:from-blue-700 hover:to-indigo-700 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all cursor-pointer"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-lg font-bold text-sm disabled:bg-slate-800 disabled:text-slate-500 transition-colors shadow-md"
           >
             {carregandoImportacao ? 'Extraindo Dados via Gemini...' : 'Processar PCA Selecionado(s)'}
           </button>
         </form>
 
         {erroImportacao && (
-          <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-medium">
+          <div className="p-3 bg-red-950/40 text-red-300 border border-red-800/60 rounded-lg text-sm font-medium">
             {erroImportacao}
           </div>
         )}
 
         {resultadoExtracao && (
-          <div className="mt-8 border border-emerald-200 p-6 rounded-2xl bg-emerald-50/40 space-y-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-200/60 pb-4">
-              <h3 className="text-lg font-bold text-emerald-900">
+          <div className="mt-6 border border-slate-800 p-5 rounded-xl bg-[#14172b] space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-emerald-400">
                 Curso: {resultadoExtracao.nomeCurso || 'Nome não identificado'}
               </h3>
-              <span className="self-start sm:self-auto text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-full border border-emerald-200">
+              <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold px-2.5 py-1 rounded-full">
                 Salvo com sucesso!
               </span>
             </div>
 
-            <div className="space-y-4">
-              <h4 className="font-semibold text-slate-700 text-sm">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Unidades Curriculares ({resultadoExtracao.unidadesCurriculares?.length || 0}):
               </h4>
-              <div className="space-y-3">
-                {resultadoExtracao.unidadesCurriculares?.map((uc, idx) => (
-                  <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-2">
-                    <p className="font-bold text-slate-800 text-base">
-                      {uc.nomeUc} {uc.cargaHoraria && <span className="text-sm font-semibold text-blue-600">({uc.cargaHoraria})</span>}
+              {resultadoExtracao.unidadesCurriculares?.map((uc, idx) => (
+                <div key={idx} className="bg-[#0b0d19] p-4 rounded-lg border border-slate-800/80 text-sm space-y-1.5">
+                  <p className="font-bold text-white text-base">
+                    {uc.nomeUc} {uc.cargaHoraria && <span className="text-xs font-semibold text-indigo-400">({uc.cargaHoraria})</span>}
+                  </p>
+                  {uc.capacidades?.length > 0 && (
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <span className="font-semibold text-slate-400">Capacidades:</span> {uc.capacidades.join('; ')}
                     </p>
-                    {uc.capacidades?.length > 0 && (
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        <span className="font-semibold text-slate-800">Capacidades:</span> {uc.capacidades.join('; ')}
-                      </p>
-                    )}
-                    {uc.conhecimentos?.length > 0 && (
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        <span className="font-semibold text-slate-800">Conhecimentos:</span> {uc.conhecimentos.join('; ')}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  )}
+                  {uc.conhecimentos?.length > 0 && (
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <span className="font-semibold text-slate-400">Conhecimentos:</span> {uc.conhecimentos.join('; ')}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
