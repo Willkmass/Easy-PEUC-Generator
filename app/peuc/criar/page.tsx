@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
@@ -25,7 +25,7 @@ export default function CriarPEUCPage() {
     'Auxiliar no planejamento e controle da produção, acompanhando ordens de serviço, estoques e indicadores operacionais na linha de fabricação.'
   );
 
-  // Capacidades Extraídas/Baseadas na PCA (Editáveis pelo docente)
+  // Capacidades Extraídas/Baseadas na PCA (Editáveis)
   const [capacidadesTecnicas, setCapacidadesTecnicas] = useState(
     '• Mapear as etapas do processo produtivo.\n• Preencher fichas de controle e ordens de produção.\n• Identificar gargalos e paradas de linha.\n• Controlar movimentação de matérias-primas e insumos.'
   );
@@ -40,18 +40,13 @@ export default function CriarPEUCPage() {
   const [tipoSituacao, setTipoSituacao] = useState('Situação-Problema');
   const [integraOutraUc, setIntegraOutraUc] = useState('Não');
   const [outraUcNome, setOutraUcNome] = useState('');
-  const [contextualizacao, setContextualizacao] = useState(
-    'A empresa de manufatura MetalMax está enfrentando atrasos frequentes nas entregas devido à falta de sincronia entre os lotes de corte e a montagem final.'
-  );
-  const [desafio, setDesafio] = useState(
-    'Como auxiliar de produção, você deve analisar o fluxo atual da linha, mapear os pontos de retenção de materiais e propor um plano de sequenciamento de ordens de produção para 5 dias úteis.'
-  );
-  const [resultadosEsperados, setResultadosEsperados] = useState(
-    'Quadro de acompanhamento de produção preenchido, relatório simples de gargalos identificados e cronograma de expedição ajustado.'
-  );
-  const [criteriosQualidade, setCriteriosQualidade] = useState(
-    'Precisão nos cálculos de capacidade diária, clareza na apresentação dos dados, atendimento integral aos prazos previstos e cumprimento das normas de segurança.'
-  );
+  const [contextualizacao, setContextualizacao] = useState('');
+  const [desafio, setDesafio] = useState('');
+  const [resultadosEsperados, setResultadosEsperados] = useState('');
+  const [criteriosQualidade, setCriteriosQualidade] = useState('');
+
+  // Estado de carregamento da IA
+  const [gerandoIA, setGerandoIA] = useState(false);
 
   // Linhas do Plano de Aula
   const [planosAula, setPlanosAula] = useState([
@@ -66,7 +61,35 @@ export default function CriarPEUCPage() {
     }
   ]);
 
-  // Atualização automática dos campos ao alterar o nome da UC (Simulação PCA)
+  // Função para chamar a IA Gemini e preencher a Situação de Aprendizagem
+  const gerarSituacaoComGemini = async () => {
+    setGerandoIA(true);
+    try {
+      const res = await fetch('/api/gerar-situacao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          curso: cursoNome,
+          uc: ucNome,
+          tipoSituacao,
+          capacidades: `${capacidadesTecnicas}\n${capacidadesBasicas}\n${capacidadesSocioemocionais}`
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+
+      if (data.contextualizacao) setContextualizacao(data.contextualizacao);
+      if (data.desafio) setDesafio(data.desafio);
+      if (data.resultados_esperados) setResultadosEsperados(data.resultados_esperados);
+      if (data.criterios_qualidade) setCriteriosQualidade(data.criterios_qualidade);
+    } catch (err: any) {
+      alert('Não foi possível gerar com o Gemini: ' + err.message);
+    } finally {
+      setGerandoIA(false);
+    }
+  };
+
   const carregarDadosPCA = (uc: string) => {
     setUcNome(uc);
     if (uc.toLowerCase().includes('controle') || uc.toLowerCase().includes('planejamento')) {
@@ -78,16 +101,6 @@ export default function CriarPEUCPage() {
       );
       setCapacidadesSocioemocionais(
         '• Demonstrar compromisso com a qualidade e prazos.\n• Trabalhar em equipe de forma colaborativa.'
-      );
-    } else if (uc.toLowerCase().includes('dados') || uc.toLowerCase().includes('trabalho')) {
-      setCapacidadesTecnicas(
-        '• Coletar e organizar dados operacionais.\n• Registrar ocorrências em sistemas ou planilhas.'
-      );
-      setCapacidadesBasicas(
-        '• Converter unidades de medida e dados estatísticos.\n• Interpretar tabelas de frequência.'
-      );
-      setCapacidadesSocioemocionais(
-        '• Manter o foco e a atenção aos detalhes.\n• Atuar com postura ética e responsável.'
       );
     }
   };
@@ -146,7 +159,6 @@ export default function CriarPEUCPage() {
       created_at: new Date().toISOString()
     };
 
-    // 1. Salva no localStorage para disponibilidade imediata
     try {
       const salvas = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
       salvas.unshift(novaPEUC);
@@ -155,11 +167,10 @@ export default function CriarPEUCPage() {
       console.error('Erro no localStorage:', err);
     }
 
-    // 2. Tenta salvar no Supabase
     try {
       await supabase.from('peucs').insert([novaPEUC]);
     } catch (err) {
-      console.warn('Banco de dados offline. Salvo apenas no localStorage.');
+      console.warn('Banco de dados offline. Salvo localmente.');
     }
 
     router.push(`/peuc/visualizar/${novaPEUC.id}`);
@@ -170,7 +181,7 @@ export default function CriarPEUCPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Nova PEUC - Metodologia SENAI</h1>
-          <p className="text-xs text-slate-500">Preenchimento guiado com capacidades integradas da PCA</p>
+          <p className="text-xs text-slate-500">Preenchimento guiado com Assistente Gemini</p>
         </div>
         <button
           onClick={() => router.push('/peuc')}
@@ -191,7 +202,7 @@ export default function CriarPEUCPage() {
                 type="text"
                 value={cursoNome}
                 onChange={(e) => setCursoNome(e.target.value)}
-                className="w-full border p-2 rounded focus:ring-1 focus:ring-blue-500"
+                className="w-full border p-2 rounded"
                 required
               />
             </div>
@@ -250,7 +261,7 @@ export default function CriarPEUCPage() {
 
         {/* 2. OBJETIVOS E CAPACIDADES DA PCA */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">2. Objetivos e Capacidades (Dados PCA)</h2>
+          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">2. Objetivos e Capacidades (PCA)</h2>
           
           <div className="space-y-3 text-xs">
             <div>
@@ -272,46 +283,55 @@ export default function CriarPEUCPage() {
               />
             </div>
 
-            {/* CAMPOS SOLICITADOS - CAPACIDADES EDITÁVEIS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
               <div>
                 <label className="font-bold text-blue-800 block mb-1">Capacidades Técnicas (PCA)</label>
-                <span className="text-[10px] text-slate-500 block mb-1">Preenchido da PCA. Pode editar:</span>
                 <textarea
-                  rows={6}
+                  rows={5}
                   value={capacidadesTecnicas}
                   onChange={(e) => setCapacidadesTecnicas(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 font-mono text-xs"
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 text-xs"
                 />
               </div>
               <div>
                 <label className="font-bold text-blue-800 block mb-1">Capacidades Básicas (PCA)</label>
-                <span className="text-[10px] text-slate-500 block mb-1">Preenchido da PCA. Pode editar:</span>
                 <textarea
-                  rows={6}
+                  rows={5}
                   value={capacidadesBasicas}
                   onChange={(e) => setCapacidadesBasicas(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 font-mono text-xs"
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 text-xs"
                 />
               </div>
               <div>
                 <label className="font-bold text-blue-800 block mb-1">Capacidades Socioemocionais</label>
-                <span className="text-[10px] text-slate-500 block mb-1">Preenchido da PCA. Pode editar:</span>
                 <textarea
-                  rows={6}
+                  rows={5}
                   value={capacidadesSocioemocionais}
                   onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
-                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 font-mono text-xs"
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 text-xs"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        {/* 3. SITUAÇÃO DE APRENDIZAGEM */}
+        {/* 3. SITUAÇÃO DE APRENDIZAGEM COM FERRAMENTA GEMINI */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 text-xs">
-          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">3. Situação de Aprendizagem (Desafio)</h2>
-          
+          <div className="flex justify-between items-center border-b pb-2">
+            <h2 className="text-sm font-bold text-blue-900 uppercase">3. Situação de Aprendizagem</h2>
+            
+            {/* BOTÃO INTEGRAÇÃO GEMINI */}
+            <button
+              type="button"
+              onClick={gerarSituacaoComGemini}
+              disabled={gerandoIA}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5 transition disabled:opacity-50"
+            >
+              <span>✨</span>
+              <span>{gerandoIA ? 'Gerando com Gemini...' : 'Gerar com Gemini'}</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="font-semibold block mb-1">Tipo de Situação</label>
@@ -341,7 +361,6 @@ export default function CriarPEUCPage() {
                 type="text"
                 value={numSa}
                 onChange={(e) => setNumSa(e.target.value)}
-                placeholder="Ex: 1"
                 className="w-full border p-2 rounded"
               />
             </div>
@@ -353,6 +372,7 @@ export default function CriarPEUCPage() {
               rows={3}
               value={contextualizacao}
               onChange={(e) => setContextualizacao(e.target.value)}
+              placeholder="Clique em 'Gerar com Gemini' acima para preencher automaticamente ou digite manualmente..."
               className="w-full border p-2 rounded"
             />
           </div>
@@ -363,6 +383,7 @@ export default function CriarPEUCPage() {
               rows={3}
               value={desafio}
               onChange={(e) => setDesafio(e.target.value)}
+              placeholder="Clique em 'Gerar com Gemini' acima para preencher automaticamente ou digite manualmente..."
               className="w-full border p-2 rounded"
             />
           </div>
