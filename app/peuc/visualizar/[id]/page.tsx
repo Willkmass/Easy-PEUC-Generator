@@ -41,13 +41,13 @@ export default function VisualizarPEUCPage() {
   }, [params.id]);
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500">Carregando visualização...</div>;
+    return <div className="p-8 text-center text-slate-500 text-sm">Carregando PEUC...</div>;
   }
 
   if (!peuc) {
     return (
       <div className="p-8 text-center space-y-4">
-        <p className="text-red-600 font-semibold">PEUC não encontrada.</p>
+        <p className="text-red-600 font-semibold text-sm">PEUC não encontrada.</p>
         <button onClick={() => router.push('/peuc')} className="text-xs bg-slate-200 px-3 py-1.5 rounded">
           Voltar para a lista
         </button>
@@ -56,101 +56,154 @@ export default function VisualizarPEUCPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-8 print:p-0 print:bg-white">
-      {/* Botões de Ação (Escondidos na Impressão) */}
+    <div className="min-h-screen bg-slate-100 p-4 md:p-8 print:p-0 print:bg-white text-slate-900 font-sans">
+      {/* Botões Superiores de Ação */}
       <div className="max-w-4xl mx-auto mb-6 flex justify-between items-center print:hidden">
         <button
           onClick={() => router.push('/peuc')}
-          className="text-xs font-semibold bg-white border border-slate-300 px-4 py-2 rounded-md hover:bg-slate-50"
+          className="text-xs font-semibold bg-white border border-slate-300 px-4 py-2 rounded-md hover:bg-slate-50 transition"
         >
-          ← Voltar
+          ← Voltar para Lista
         </button>
         <button
           onClick={() => window.print()}
-          className="text-xs font-semibold bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 shadow-sm"
+          className="text-xs font-semibold bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 shadow-sm transition"
         >
-          Imprimir / Salvar PDF
+          Imprimir / Baixar PDF
         </button>
       </div>
 
-      {/* Folha Oficial de Impressão (Estilo Documento SENAI) */}
-      <div className="max-w-4xl mx-auto bg-white border border-slate-300 p-8 shadow-md print:shadow-none print:border-none print:p-0 text-slate-900 text-xs">
+      {/* DOCUMENTO OFICIAL NO PADRÃO METODOLOGIA SENAI DE EDUCAÇÃO PROFISSIONAL */}
+      <div className="max-w-4xl mx-auto bg-white border border-slate-900 p-8 shadow-md print:shadow-none print:border-none print:p-0 text-xs">
         
         {/* Cabeçalho Institucional */}
-        <div className="border border-slate-900 p-4 text-center mb-4">
-          <h1 className="font-bold text-sm uppercase">SISTEMA SENAI-PR</h1>
-          <h2 className="font-bold text-xs uppercase text-slate-700">PLANO DE ENSINO DA UNIDADE CURRICULAR (PEUC)</h2>
+        <div className="border border-slate-900 p-4 text-center mb-4 bg-slate-50">
+          <h1 className="font-bold text-base uppercase tracking-wide">SISTEMA SENAI DE EDUCAÇÃO PROFISSIONAL</h1>
+          <h2 className="font-bold text-xs uppercase text-slate-700 mt-1">PLANO DE ENSINO DA UNIDADE CURRICULAR (PEUC)</h2>
         </div>
 
-        {/* 1. Identificação */}
+        {/* 1. IDENTIFICAÇÃO GERAL */}
         <div className="border border-slate-900 mb-4">
-          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase">
+          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase text-[11px]">
             1. Identificação Geral
           </div>
           <div className="grid grid-cols-2 border-b border-slate-900">
-            <div className="p-1.5 border-r border-slate-900"><strong>Curso:</strong> {peuc.curso_nome}</div>
-            <div className="p-1.5"><strong>Modalidade:</strong> {peuc.modalidade}</div>
+            <div className="p-2 border-r border-slate-900"><strong>Curso:</strong> {peuc.curso_nome}</div>
+            <div className="p-2"><strong>Modalidade:</strong> {peuc.modalidade}</div>
           </div>
           <div className="grid grid-cols-2 border-b border-slate-900">
-            <div className="p-1.5 border-r border-slate-900"><strong>Unidade Curricular:</strong> {peuc.uc_nome}</div>
-            <div className="p-1.5"><strong>Carga Horária:</strong> {peuc.uc_carga_horaria}</div>
+            <div className="p-2 border-r border-slate-900"><strong>Unidade Curricular:</strong> {peuc.uc_nome}</div>
+            <div className="p-2"><strong>Carga Horária Total:</strong> {peuc.uc_carga_horaria}</div>
           </div>
           <div className="grid grid-cols-3 border-b border-slate-900">
-            <div className="p-1.5 border-r border-slate-900"><strong>Docente:</strong> {peuc.docente}</div>
-            <div className="p-1.5 border-r border-slate-900"><strong>Módulo:</strong> {peuc.modulo || 'N/A'}</div>
-            <div className="p-1.5"><strong>Nº Aulas / SA:</strong> {peuc.num_aulas} aulas / SA {peuc.num_sa}</div>
+            <div className="p-2 border-r border-slate-900"><strong>Docente:</strong> {peuc.docente}</div>
+            <div className="p-2 border-r border-slate-900"><strong>Módulo:</strong> {peuc.modulo || 'Módulo Único'}</div>
+            <div className="p-2"><strong>Nº Aulas / SA:</strong> {peuc.num_aulas} aulas (SA nº {peuc.num_sa})</div>
           </div>
         </div>
 
-        {/* 2. Estratégia de Aprendizagem */}
+        {/* 2. OBJETIVOS E COMPETÊNCIAS */}
         <div className="border border-slate-900 mb-4">
-          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase">
-            2. Estratégia de Aprendizagem Desafiadora
+          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase text-[11px]">
+            2. Objetivos e Competências da Unidade Curricular
           </div>
-          <div className="p-1.5 border-b border-slate-900">
-            <strong>Estratégia:</strong> {peuc.tipo_situacao} {peuc.integra_outra_uc === 'Sim' ? `(Integrada com: ${peuc.outra_uc_nome})` : ''}
+          <div className="p-2 border-b border-slate-900">
+            <strong>Objetivo Geral:</strong>
+            <p className="mt-1 text-slate-800">
+              {peuc.objetivo_geral || `Proporcionar o desenvolvimento de capacidades técnicas e socioemocionais para a aplicação de rotinas operacionais e controle de processos relativos à UC de ${peuc.uc_nome}, atendendo às normas técnicas, ambientais e de segurança.`}
+            </p>
           </div>
-          <div className="p-1.5 border-b border-slate-900">
+          <div className="p-2 border-b border-slate-900">
+            <strong>Competência(s) da UC:</strong>
+            <p className="mt-1 text-slate-800">
+              {peuc.competencias || `Executar e acompanhar atividades operacionais e administrativas na área de ${peuc.curso_nome}, utilizando ferramentas técnicas específicas, assegurando a qualidade e eficiência dos processos.`}
+            </p>
+          </div>
+          
+          {/* Divisão de Capacidades */}
+          <div className="p-2">
+            <strong>Capacidades a Serem Desenvolvidas:</strong>
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <div className="p-2 bg-slate-50 border border-slate-300 rounded">
+                <span className="font-bold block text-blue-900 border-b border-slate-200 pb-1 mb-1">Capacidades Técnicas</span>
+                <p className="text-[11px] text-slate-700">
+                  {peuc.capacidades_tecnicas || peuc.planos_aula?.[0]?.capacidades || 'Identificar e aplicar rotinas técnicas e ferramentas operacionais especificadas.'}
+                </p>
+              </div>
+              <div className="p-2 bg-slate-50 border border-slate-300 rounded">
+                <span className="font-bold block text-blue-900 border-b border-slate-200 pb-1 mb-1">Capacidades Básicas</span>
+                <p className="text-[11px] text-slate-700">
+                  {peuc.capacidades_basicas || 'Interpretar textos técnicos, normas e dados numéricos aplicados aos processos.'}
+                </p>
+              </div>
+              <div className="p-2 bg-slate-50 border border-slate-300 rounded">
+                <span className="font-bold block text-blue-900 border-b border-slate-200 pb-1 mb-1">Capacidades Socioemocionais</span>
+                <p className="text-[11px] text-slate-700">
+                  {peuc.capacidades_socioemocionais || 'Demonstrar trabalho em equipe, proatividade, responsabilidade e comunicação assertiva.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. ESTRATÉGIA DE APRENDIZAGEM DESAFIADORA (SITUAÇÃO DE APRENDIZAGEM) */}
+        <div className="border border-slate-900 mb-4">
+          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase text-[11px]">
+            3. Estratégia de Aprendizagem Desafiadora (Situação de Aprendizagem)
+          </div>
+          <div className="p-2 border-b border-slate-900 bg-slate-50">
+            <strong>Tipo de Situação:</strong> {peuc.tipo_situacao} {peuc.integra_outra_uc === 'Sim' ? `(Integrada com: ${peuc.outra_uc_nome})` : ''}
+          </div>
+          <div className="p-2 border-b border-slate-900">
             <strong>Contextualização:</strong>
             <p className="mt-1 text-slate-800 whitespace-pre-line">{peuc.contextualizacao}</p>
           </div>
-          <div className="p-1.5 border-b border-slate-900">
-            <strong>Desafio:</strong>
+          <div className="p-2 border-b border-slate-900">
+            <strong>Desafio Proposto (Situação Real/Simulada):</strong>
             <p className="mt-1 text-slate-800 whitespace-pre-line">{peuc.desafio}</p>
           </div>
-          <div className="p-1.5">
-            <strong>Resultados Esperados:</strong>
-            <p className="mt-1 text-slate-800 whitespace-pre-line">{peuc.resultados_esperados}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            <div className="p-2 border-r md:border-r border-slate-900">
+              <strong>Resultados Esperados (Entregáveis):</strong>
+              <p className="mt-1 text-slate-800 whitespace-pre-line">{peuc.resultados_esperados}</p>
+            </div>
+            <div className="p-2">
+              <strong>Critérios Mínimos de Qualidade:</strong>
+              <p className="mt-1 text-slate-800 whitespace-pre-line">
+                {peuc.criterios_qualidade || 'Atendimento integral aos requisitos descritos no desafio, exatidão nos cálculos/registros técnicos, conformidade com normas de segurança e pontualidade na entrega.'}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* 3. Tabela do Plano de Aula */}
+        {/* 4. PLANO DE AULA DETALHADO */}
         <div className="border border-slate-900">
-          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase">
-            3. Plano de Aula
+          <div className="bg-slate-200 font-bold p-1.5 border-b border-slate-900 uppercase text-[11px]">
+            4. Plano de Aula
           </div>
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-900 bg-slate-100 font-bold text-[10px] uppercase">
-                <th className="border-r border-slate-900 p-1">Aulas</th>
-                <th className="border-r border-slate-900 p-1">Capacidades</th>
-                <th className="border-r border-slate-900 p-1">Conhecimentos</th>
-                <th className="border-r border-slate-900 p-1">Estratégias</th>
-                <th className="border-r border-slate-900 p-1">Recursos</th>
-                <th className="border-r border-slate-900 p-1">Critérios</th>
-                <th className="p-1">Instrumentos</th>
+                <th className="border-r border-slate-900 p-1.5 w-12 text-center">Aulas</th>
+                <th className="border-r border-slate-900 p-1.5">Conteúdos (Tópicos Principais)</th>
+                <th className="border-r border-slate-900 p-1.5">Capacidades / Objetivos</th>
+                <th className="border-r border-slate-900 p-1.5">Estratégias de Ensino</th>
+                <th className="border-r border-slate-900 p-1.5">Recursos e Ambientes</th>
+                <th className="p-1.5">Critérios e Instrumentos Avaliativos</th>
               </tr>
             </thead>
             <tbody>
               {peuc.planos_aula?.map((item: any, idx: number) => (
-                <tr key={idx} className="border-b border-slate-900 text-[10px]">
-                  <td className="border-r border-slate-900 p-1">{item.numAulas}</td>
-                  <td className="border-r border-slate-900 p-1">{item.capacidades}</td>
-                  <td className="border-r border-slate-900 p-1">{item.conhecimentos}</td>
-                  <td className="border-r border-slate-900 p-1">{item.estrategias}</td>
-                  <td className="border-r border-slate-900 p-1">{item.recursos}</td>
-                  <td className="border-r border-slate-900 p-1">{item.criterios}</td>
-                  <td className="p-1">{item.instrumentos}</td>
+                <tr key={idx} className="border-b border-slate-900 text-[10px] align-top">
+                  <td className="border-r border-slate-900 p-1.5 text-center font-bold">{item.numAulas}</td>
+                  <td className="border-r border-slate-900 p-1.5">{item.conhecimentos}</td>
+                  <td className="border-r border-slate-900 p-1.5">{item.capacidades}</td>
+                  <td className="border-r border-slate-900 p-1.5">{item.estrategias}</td>
+                  <td className="border-r border-slate-900 p-1.5">{item.recursos}</td>
+                  <td className="p-1.5">
+                    <strong>Critério:</strong> {item.criterios}<br/>
+                    <strong>Instrumento:</strong> {item.instrumentos}
+                  </td>
                 </tr>
               ))}
             </tbody>
