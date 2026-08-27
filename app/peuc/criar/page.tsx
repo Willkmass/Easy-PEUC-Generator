@@ -49,6 +49,29 @@ export default function CriarPEUCPage() {
     }
   ]);
 
+  // Função para gerar automaticamente as lacunas de plano de aula
+  const gerarLacunasAulas = (cargaHoraria: string) => {
+    const ch = parseFloat(cargaHoraria);
+    if (!isNaN(ch) && ch > 0) {
+      const quantidadeAulas = Math.ceil(ch / 4);
+      const novasAulas = Array.from({ length: quantidadeAulas }, () => ({
+        numAulas: '4',
+        conhecimentos: '',
+        capacidades: '',
+        estrategias: '',
+        recursos: '',
+        instrumentos: ''
+      }));
+      setPlanosAula(novasAulas);
+    }
+  };
+
+  useEffect(() => {
+    if (ucCargaHoraria) {
+      gerarLacunasAulas(ucCargaHoraria);
+    }
+  }, [ucCargaHoraria]);
+
   // Formatador auxiliar de textos
   const formatarTexto = (val: any): string => {
     if (!val) return '';
@@ -706,7 +729,7 @@ export default function CriarPEUCPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Conteúdos</label>
+                      <label className="block text-[11px] font-semibold text-slate-400 mb-1">Conhecimentos</label>
                       <input
                         type="text"
                         value={item.conhecimentos}
@@ -760,13 +783,13 @@ export default function CriarPEUCPage() {
             </div>
           </section>
 
-          {/* BARRA DE AÇÕES (BOTÃO SALVAR) */}
+          {/* BOTÃO SALVAR */}
           <div className="flex justify-end pt-4">
             <button
               type="submit"
-              className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-extrabold px-8 py-4 rounded-xl shadow-xl shadow-purple-950/40 transition active:scale-[0.99] text-sm tracking-wide"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition active:scale-95 text-xs"
             >
-              💾 Salvar e Gerar PEUC Final
+              Salvar Plano de Ensino (PEUC)
             </button>
           </div>
         </form>
