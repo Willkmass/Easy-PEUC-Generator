@@ -1,319 +1,488 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 export default function CriarPEUCPage() {
-  const [cursos, setCursos] = useState<any[]>([]);
-  const [ucs, setUcs] = useState<any[]>([]);
-  
-  const [cursoSelecionadoId, setCursoSelecionadoId] = useState('');
-  const [ucSelecionadaId, setUcSelecionadaId] = useState('');
+  const router = useRouter();
 
-  // 1. Cabeçalho Institucional SENAI
+  // Dados Gerais
+  const [cursoNome, setCursoNome] = useState('AUXILIAR DE PRODUÇÃO');
+  const [modalidade, setModalidade] = useState('Aprendizagem Industrial');
+  const [ucNome, setUcNome] = useState('Planejamento e Controle da Produção');
+  const [ucCargaHoraria, setUcCargaHoraria] = useState('80 horas');
+  const [modulo, setModulo] = useState('Módulo Específico');
   const [docente, setDocente] = useState('');
-  const [modalidade, setModalidade] = useState('Habilitação Técnica');
-  const [modulo, setModulo] = useState('');
-  const [numAulas, setNumAulas] = useState('');
-  const [numSA, setNumSA] = useState('1');
+  const [numAulas, setNumAulas] = useState('20');
+  const [numSa, setNumSa] = useState('1');
 
-  // 2. Estratégia de Aprendizagem
+  // Objetivos e Competências
+  const [objetivoGeral, setObjetivoGeral] = useState(
+    'Desenvolver capacidades para planejar, programar e controlar os fluxos de produção industrial de acordo com metas, normas técnicas, de qualidade e segurança.'
+  );
+  const [competencias, setCompetencias] = useState(
+    'Auxiliar no planejamento e controle da produção, acompanhando ordens de serviço, estoques e indicadores operacionais na linha de fabricação.'
+  );
+
+  // Capacidades Extraídas/Baseadas na PCA (Editáveis pelo docente)
+  const [capacidadesTecnicas, setCapacidadesTecnicas] = useState(
+    '• Mapear as etapas do processo produtivo.\n• Preencher fichas de controle e ordens de produção.\n• Identificar gargalos e paradas de linha.\n• Controlar movimentação de matérias-primas e insumos.'
+  );
+  const [capacidadesBasicas, setCapacidadesBasicas] = useState(
+    '• Interpretar gráficos, tabelas e relatórios operacionais.\n• Aplicar cálculos matemáticos básicos aplicados ao rendimento e refugo.\n• Compreender a simbologia e terminologia técnica da produção.'
+  );
+  const [capacidadesSocioemocionais, setCapacidadesSocioemocionais] = useState(
+    '• Demonstrar compromisso com a qualidade e prazos.\n• Trabalhar em equipe de forma colaborativa.\n• Comunicar discrepâncias no processo com clareza e objetividade.'
+  );
+
+  // Situação de Aprendizagem
   const [tipoSituacao, setTipoSituacao] = useState('Situação-Problema');
-  const [integraOutraUC, setIntegraOutraUC] = useState('Não');
+  const [integraOutraUc, setIntegraOutraUc] = useState('Não');
   const [outraUcNome, setOutraUcNome] = useState('');
-  const [contextualizacao, setContextualizacao] = useState('');
-  const [desafio, setDesafio] = useState('');
-  const [resultadosEsperados, setResultadosEsperados] = useState('');
+  const [contextualizacao, setContextualizacao] = useState(
+    'A empresa de manufatura MetalMax está enfrentando atrasos frequentes nas entregas devido à falta de sincronia entre os lotes de corte e a montagem final.'
+  );
+  const [desafio, setDesafio] = useState(
+    'Como auxiliar de produção, você deve analisar o fluxo atual da linha, mapear os pontos de retenção de materiais e propor um plano de sequenciamento de ordens de produção para 5 dias úteis.'
+  );
+  const [resultadosEsperados, setResultadosEsperados] = useState(
+    'Quadro de acompanhamento de produção preenchido, relatório simples de gargalos identificados e cronograma de expedição ajustado.'
+  );
+  const [criteriosQualidade, setCriteriosQualidade] = useState(
+    'Precisão nos cálculos de capacidade diária, clareza na apresentação dos dados, atendimento integral aos prazos previstos e cumprimento das normas de segurança.'
+  );
 
-  // 3. Matriz de Plano de Aula (SENAI)
+  // Linhas do Plano de Aula
   const [planosAula, setPlanosAula] = useState([
     {
-      numAulas: '',
-      capacidades: '',
-      conhecimentos: '',
-      estrategias: '',
-      recursos: '',
-      criterios: '',
-      instrumentos: ''
+      numAulas: '4',
+      conhecimentos: 'Conceitos de PCP e Tipos de Processos Produtivos',
+      capacidades: 'Mapear etapas do processo produtivo',
+      estrategias: 'Aula expositiva dialogada e estudo de fluxo de fábrica',
+      recursos: 'Sala de aula, data-show, amostras de ordens de produção',
+      criterios: 'Identificação correta das etapas da linha',
+      instrumentos: 'Lista de verificação e exercícios práticos'
     }
   ]);
 
-  const [loading, setLoading] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
-
-  // Carrega Cursos (Supabase + localStorage)
-  useEffect(() => {
-    async function carregarCursos() {
-      setLoading(true);
-      let cursosSupabase: any[] = [];
-      try {
-        const { data } = await supabase.from('cursos').select('*').order('nome', { ascending: true });
-        if (data) cursosSupabase = data;
-      } catch (err) {
-        console.warn('Supabase offline ou sem tabela cursos:', err);
-      }
-
-      let cursosLocais: any[] = [];
-      try {
-        const localRaw = localStorage.getItem('cursos_peuc');
-        if (localRaw) {
-          cursosLocais = JSON.parse(localRaw).map((item: any, idx: number) => ({
-            id: item.id ? String(item.id) : `local-${idx}`,
-            nome: item.nomeCurso || item.nome || 'Curso Sem Nome',
-            categoria: item.categoria || 'Geral',
-          }));
-        }
-      } catch (err) {
-        console.error('Erro ao ler localStorage:', err);
-      }
-
-      const mapa = new Map<string, any>();
-      [...cursosSupabase, ...cursosLocais].forEach(c => mapa.set(c.id || c.nome, c));
-      setCursos(Array.from(mapa.values()));
-      setLoading(false);
+  // Atualização automática dos campos ao alterar o nome da UC (Simulação PCA)
+  const carregarDadosPCA = (uc: string) => {
+    setUcNome(uc);
+    if (uc.toLowerCase().includes('controle') || uc.toLowerCase().includes('planejamento')) {
+      setCapacidadesTecnicas(
+        '• Mapear as etapas do processo produtivo.\n• Preencher fichas de controle e ordens de produção.\n• Identificar gargalos e paradas de linha.'
+      );
+      setCapacidadesBasicas(
+        '• Interpretar gráficos e relatórios operacionais.\n• Aplicar cálculos matemáticos básicos aplicados ao rendimento.'
+      );
+      setCapacidadesSocioemocionais(
+        '• Demonstrar compromisso com a qualidade e prazos.\n• Trabalhar em equipe de forma colaborativa.'
+      );
+    } else if (uc.toLowerCase().includes('dados') || uc.toLowerCase().includes('trabalho')) {
+      setCapacidadesTecnicas(
+        '• Coletar e organizar dados operacionais.\n• Registrar ocorrências em sistemas ou planilhas.'
+      );
+      setCapacidadesBasicas(
+        '• Converter unidades de medida e dados estatísticos.\n• Interpretar tabelas de frequência.'
+      );
+      setCapacidadesSocioemocionais(
+        '• Manter o foco e a atenção aos detalhes.\n• Atuar com postura ética e responsável.'
+      );
     }
-    carregarCursos();
-  }, []);
+  };
 
-  // Carrega UCs dinamicamente com base no Curso Selecionado
-  useEffect(() => {
-    async function carregarUCs() {
-      if (!cursoSelecionadoId) {
-        setUcs([]);
-        setUcSelecionadaId('');
-        return;
-      }
-      let ucsEncontradas: any[] = [];
-      if (!cursoSelecionadoId.startsWith('local-')) {
-        try {
-          const { data } = await supabase.from('unidades_curriculares').select('*').eq('curso_id', cursoSelecionadoId);
-          if (data) ucsEncontradas = data;
-        } catch (err) {
-          console.warn('Erro ao carregar UCs:', err);
-        }
-      }
-
-      if (ucsEncontradas.length === 0) {
-        try {
-          const localRaw = localStorage.getItem('cursos_peuc');
-          if (localRaw) {
-            const parsed = JSON.parse(localRaw);
-            const cursoLocal = parsed.find((item: any) => String(item.id) === cursoSelecionadoId || item.nomeCurso === cursoSelecionadoId);
-            if (cursoLocal?.unidadesCurriculares) {
-              ucsEncontradas = cursoLocal.unidadesCurriculares.map((uc: any, idx: number) => ({
-                id: uc.id || `uc-local-${idx}`,
-                nome: uc.nomeUc || uc.nome || 'UC sem nome',
-                carga_horaria: uc.cargaHoraria || uc.carga_horaria || 0,
-              }));
-            }
-          }
-        } catch (err) {
-          console.error('Erro ao ler UCs do localStorage:', err);
-        }
-      }
-      setUcs(ucsEncontradas);
-    }
-    carregarUCs();
-  }, [cursoSelecionadoId]);
-
-  const addLinhaPlano = () => {
+  const adicionarLinhaAula = () => {
     setPlanosAula([
       ...planosAula,
-      { numAulas: '', capacidades: '', conhecimentos: '', estrategias: '', recursos: '', criterios: '', instrumentos: '' }
+      {
+        numAulas: '4',
+        conhecimentos: '',
+        capacidades: '',
+        estrategias: '',
+        recursos: '',
+        criterios: '',
+        instrumentos: ''
+      }
     ]);
   };
 
-  const removerLinhaPlano = (index: number) => {
-    if (planosAula.length === 1) return;
+  const atualizarLinhaAula = (index: number, campo: string, valor: string) => {
+    const novasLinhas = [...planosAula];
+    novasLinhas[index] = { ...novasLinhas[index], [campo]: valor };
+    setPlanosAula(novasLinhas);
+  };
+
+  const removerLinhaAula = (index: number) => {
     setPlanosAula(planosAula.filter((_, i) => i !== index));
   };
 
-  const handleSalvarPEUC = async (e: React.FormEvent) => {
+  const salvarPEUC = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSalvando(true);
-    setMensagem(null);
 
-    const cursoAtual = cursos.find(c => c.id === cursoSelecionadoId);
-    const ucAtual = ucs.find(u => u.id === ucSelecionadaId);
-
-    const payload = {
-      id: Date.now().toString(),
-      curso_id: cursoSelecionadoId,
-      curso_nome: cursoAtual?.nome || 'Não informado',
-      unidade_curricular_id: ucSelecionadaId,
-      uc_nome: ucAtual?.nome || 'Não informado',
-      uc_carga_horaria: ucAtual?.carga_horaria || 0,
-      docente,
+    const novaPEUC = {
+      id: String(Date.now()),
+      curso_nome: cursoNome,
       modalidade,
+      uc_nome: ucNome,
+      uc_carga_horaria: ucCargaHoraria,
       modulo,
+      docente,
       num_aulas: numAulas,
-      num_sa: numSA,
+      num_sa: numSa,
+      objetivo_geral: objetivoGeral,
+      competencias,
+      capacidades_tecnicas: capacidadesTecnicas,
+      capacidades_basicas: capacidadesBasicas,
+      capacidades_socioemocionais: capacidadesSocioemocionais,
       tipo_situacao: tipoSituacao,
-      integra_outra_uc: integraOutraUC,
+      integra_outra_uc: integraOutraUc,
       outra_uc_nome: outraUcNome,
       contextualizacao,
       desafio,
       resultados_esperados: resultadosEsperados,
+      criterios_qualidade: criteriosQualidade,
       planos_aula: planosAula,
-      status: 'Concluído',
       created_at: new Date().toISOString()
     };
 
+    // 1. Salva no localStorage para disponibilidade imediata
     try {
-      if (!cursoSelecionadoId.startsWith('local-')) {
-        await supabase.from('peucs').insert(payload);
-      }
-      const peucsLocais = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
-      peucsLocais.push(payload);
-      localStorage.setItem('peucs_salvas', JSON.stringify(peucsLocais));
-
-      setMensagem({ tipo: 'sucesso', texto: 'PEUC cadastrada com sucesso! Pronta para exportação em PDF.' });
-    } catch (err: any) {
-      setMensagem({ tipo: 'erro', texto: err.message || 'Erro ao salvar a PEUC.' });
-    } finally {
-      setSalvando(false);
+      const salvas = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
+      salvas.unshift(novaPEUC);
+      localStorage.setItem('peucs_salvas', JSON.stringify(salvas));
+    } catch (err) {
+      console.error('Erro no localStorage:', err);
     }
+
+    // 2. Tenta salvar no Supabase
+    try {
+      await supabase.from('peucs').insert([novaPEUC]);
+    } catch (err) {
+      console.warn('Banco de dados offline. Salvo apenas no localStorage.');
+    }
+
+    router.push(`/peuc/visualizar/${novaPEUC.id}`);
   };
 
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <div className="mb-6 border-b border-slate-200 pb-4">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Plano de Ensino da Unidade Curricular</h1>
-        <p className="text-sm text-slate-500">Padrão Oficial Sistema SENAI / DR-PR</p>
+    <main className="max-w-5xl mx-auto p-6 bg-slate-50 min-h-screen text-slate-800">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Nova PEUC - Metodologia SENAI</h1>
+          <p className="text-xs text-slate-500">Preenchimento guiado com capacidades integradas da PCA</p>
+        </div>
+        <button
+          onClick={() => router.push('/peuc')}
+          className="text-xs bg-white border border-slate-300 px-3 py-2 rounded-md hover:bg-slate-100"
+        >
+          Cancelar
+        </button>
       </div>
 
-      <form onSubmit={handleSalvarPEUC} className="space-y-6">
-        {/* Bloco 1: Identificação */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700 mb-4">1. Identificação Geral</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <form onSubmit={salvarPEUC} className="space-y-6">
+        {/* 1. IDENTIFICAÇÃO */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">1. Identificação Geral</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Docente(s)</label>
-              <input type="text" value={docente} onChange={(e) => setDocente(e.target.value)} placeholder="Nome do docente" className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+              <label className="font-semibold block mb-1">Nome do Curso</label>
+              <input
+                type="text"
+                value={cursoNome}
+                onChange={(e) => setCursoNome(e.target.value)}
+                className="w-full border p-2 rounded focus:ring-1 focus:ring-blue-500"
+                required
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Curso</label>
-              <select value={cursoSelecionadoId} onChange={(e) => setCursoSelecionadoId(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900" required>
-                <option value="">-- Selecione o Curso --</option>
-                {cursos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <label className="font-semibold block mb-1">Modalidade</label>
+              <input
+                type="text"
+                value={modalidade}
+                onChange={(e) => setModalidade(e.target.value)}
+                className="w-full border p-2 rounded"
+                required
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Unidade Curricular</label>
-              <select value={ucSelecionadaId} onChange={(e) => setUcSelecionadaId(e.target.value)} disabled={!cursoSelecionadoId} className="w-full border rounded-md p-2 text-sm text-slate-900 disabled:bg-slate-100" required>
-                <option value="">-- Selecione a UC --</option>
-                {ucs.map(u => <option key={u.id} value={u.id}>{u.nome} ({u.carga_horaria}h)</option>)}
-              </select>
+              <label className="font-semibold block mb-1">Módulo</label>
+              <input
+                type="text"
+                value={modulo}
+                onChange={(e) => setModulo(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Modalidade</label>
-              <select value={modalidade} onChange={(e) => setModalidade(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900">
-                <option value="Aprendizagem Industrial">Aprendizagem Industrial</option>
-                <option value="Habilitação Técnica">Habilitação Técnica</option>
-                <option value="Qualificação Profissional">Qualificação Profissional</option>
-              </select>
+              <label className="font-semibold block mb-1">Unidade Curricular (UC)</label>
+              <input
+                type="text"
+                value={ucNome}
+                onChange={(e) => carregarDadosPCA(e.target.value)}
+                className="w-full border p-2 rounded"
+                required
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Módulo</label>
-              <input type="text" value={modulo} onChange={(e) => setModulo(e.target.value)} placeholder="Ex: Módulo Básico" className="w-full border rounded-md p-2 text-sm text-slate-900" />
+              <label className="font-semibold block mb-1">Carga Horária Total</label>
+              <input
+                type="text"
+                value={ucCargaHoraria}
+                onChange={(e) => setUcCargaHoraria(e.target.value)}
+                className="w-full border p-2 rounded"
+                required
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Nº Aulas / Nº SA</label>
-              <div className="flex gap-2">
-                <input type="text" placeholder="Aulas" value={numAulas} onChange={(e) => setNumAulas(e.target.value)} className="w-1/2 border rounded-md p-2 text-sm text-slate-900" />
-                <input type="text" placeholder="Nº SA" value={numSA} onChange={(e) => setNumSA(e.target.value)} className="w-1/2 border rounded-md p-2 text-sm text-slate-900" />
+              <label className="font-semibold block mb-1">Docente Responsável</label>
+              <input
+                type="text"
+                value={docente}
+                onChange={(e) => setDocente(e.target.value)}
+                placeholder="Nome do Professor"
+                className="w-full border p-2 rounded"
+                required
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 2. OBJETIVOS E CAPACIDADES DA PCA */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">2. Objetivos e Capacidades (Dados PCA)</h2>
+          
+          <div className="space-y-3 text-xs">
+            <div>
+              <label className="font-semibold block mb-1">Objetivo Geral da UC</label>
+              <textarea
+                rows={2}
+                value={objetivoGeral}
+                onChange={(e) => setObjetivoGeral(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
+            </div>
+            <div>
+              <label className="font-semibold block mb-1">Competência(s) Relacionada(s)</label>
+              <textarea
+                rows={2}
+                value={competencias}
+                onChange={(e) => setCompetencias(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
+            </div>
+
+            {/* CAMPOS SOLICITADOS - CAPACIDADES EDITÁVEIS */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div>
+                <label className="font-bold text-blue-800 block mb-1">Capacidades Técnicas (PCA)</label>
+                <span className="text-[10px] text-slate-500 block mb-1">Preenchido da PCA. Pode editar:</span>
+                <textarea
+                  rows={6}
+                  value={capacidadesTecnicas}
+                  onChange={(e) => setCapacidadesTecnicas(e.target.value)}
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-blue-800 block mb-1">Capacidades Básicas (PCA)</label>
+                <span className="text-[10px] text-slate-500 block mb-1">Preenchido da PCA. Pode editar:</span>
+                <textarea
+                  rows={6}
+                  value={capacidadesBasicas}
+                  onChange={(e) => setCapacidadesBasicas(e.target.value)}
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 font-mono text-xs"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-blue-800 block mb-1">Capacidades Socioemocionais</label>
+                <span className="text-[10px] text-slate-500 block mb-1">Preenchido da PCA. Pode editar:</span>
+                <textarea
+                  rows={6}
+                  value={capacidadesSocioemocionais}
+                  onChange={(e) => setCapacidadesSocioemocionais(e.target.value)}
+                  className="w-full border border-blue-200 p-2 rounded bg-blue-50/30 font-mono text-xs"
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Bloco 2: Estratégia de Aprendizagem */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700">2. Estratégia de Aprendizagem Desafiadora</h2>
+        {/* 3. SITUAÇÃO DE APRENDIZAGEM */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 text-xs">
+          <h2 className="text-sm font-bold text-blue-900 uppercase border-b pb-2">3. Situação de Aprendizagem (Desafio)</h2>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Estratégia</label>
-              <select value={tipoSituacao} onChange={(e) => setTipoSituacao(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900">
+              <label className="font-semibold block mb-1">Tipo de Situação</label>
+              <select
+                value={tipoSituacao}
+                onChange={(e) => setTipoSituacao(e.target.value)}
+                className="w-full border p-2 rounded"
+              >
                 <option value="Situação-Problema">Situação-Problema</option>
                 <option value="Estudo de Caso">Estudo de Caso</option>
-                <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
                 <option value="Projeto">Projeto</option>
-                <option value="Projeto Integrador">Projeto Integrador</option>
+                <option value="Pesquisa Aplicada">Pesquisa Aplicada</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Integra outra UC/Curso?</label>
-              <select value={integraOutraUC} onChange={(e) => setIntegraOutraUC(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900">
-                <option value="Não">Não</option>
-                <option value="Sim">Sim</option>
-              </select>
+              <label className="font-semibold block mb-1">Número de Aulas da SA</label>
+              <input
+                type="text"
+                value={numAulas}
+                onChange={(e) => setNumAulas(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
             </div>
-            {integraOutraUC === 'Sim' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Qual outra UC / Curso?</label>
-                <input type="text" value={outraUcNome} onChange={(e) => setOutraUcNome(e.target.value)} className="w-full border rounded-md p-2 text-sm text-slate-900" />
-              </div>
-            )}
+            <div>
+              <label className="font-semibold block mb-1">Identificação da SA</label>
+              <input
+                type="text"
+                value={numSa}
+                onChange={(e) => setNumSa(e.target.value)}
+                placeholder="Ex: 1"
+                className="w-full border p-2 rounded"
+              />
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Contextualização</label>
-            <textarea rows={2} value={contextualizacao} onChange={(e) => setContextualizacao(e.target.value)} placeholder="Breve contexto prático da situação..." className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+            <label className="font-semibold block mb-1">Contextualização do Tema</label>
+            <textarea
+              rows={3}
+              value={contextualizacao}
+              onChange={(e) => setContextualizacao(e.target.value)}
+              className="w-full border p-2 rounded"
+            />
           </div>
+
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Desafio</label>
-            <textarea rows={2} value={desafio} onChange={(e) => setDesafio(e.target.value)} placeholder="O problema ou projeto a ser resolvido..." className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+            <label className="font-semibold block mb-1">Desafio Proposto ao Estudante</label>
+            <textarea
+              rows={3}
+              value={desafio}
+              onChange={(e) => setDesafio(e.target.value)}
+              className="w-full border p-2 rounded"
+            />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Resultados Esperados</label>
-            <textarea rows={2} value={resultadosEsperados} onChange={(e) => setResultadosEsperados(e.target.value)} placeholder="Produtos, entregáveis ou relatórios..." className="w-full border rounded-md p-2 text-sm text-slate-900" required />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="font-semibold block mb-1">Resultados Esperados (Entregáveis)</label>
+              <textarea
+                rows={3}
+                value={resultadosEsperados}
+                onChange={(e) => setResultadosEsperados(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
+            </div>
+            <div>
+              <label className="font-semibold block mb-1">Critérios Mínimos de Qualidade</label>
+              <textarea
+                rows={3}
+                value={criteriosQualidade}
+                onChange={(e) => setCriteriosQualidade(e.target.value)}
+                className="w-full border p-2 rounded"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Bloco 3: Matriz de Plano de Aula SENAI */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700">3. Plano de Aula</h2>
-            <button type="button" onClick={addLinhaPlano} className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-300">
-              + Adicionar Linha
+        {/* 4. PLANO DE AULA DETALHADO */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b pb-2">
+            <h2 className="text-sm font-bold text-blue-900 uppercase">4. Matriz do Plano de Aula</h2>
+            <button
+              type="button"
+              onClick={adicionarLinhaAula}
+              className="bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded hover:bg-blue-100"
+            >
+              + Adicionar Aula
             </button>
           </div>
 
-          <div className="space-y-3">
-            {planosAula.map((linha, idx) => (
-              <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
-                <div className="flex justify-between items-center font-bold text-slate-600">
-                  <span>Item #{idx + 1}</span>
-                  {planosAula.length > 1 && (
-                    <button type="button" onClick={() => removerLinhaPlano(idx)} className="text-red-500 hover:text-red-700">
-                      Remover
-                    </button>
-                  )}
+          {planosAula.map((item, idx) => (
+            <div key={idx} className="border border-slate-200 p-3 rounded-lg bg-slate-50 space-y-2 text-xs">
+              <div className="flex justify-between items-center font-bold text-slate-700">
+                <span>Aula #{idx + 1}</span>
+                {planosAula.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removerLinhaAula(idx)}
+                    className="text-red-500 hover:text-red-700 text-[11px]"
+                  >
+                    Remover
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold">Nº Aulas</label>
+                  <input
+                    type="text"
+                    value={item.numAulas}
+                    onChange={(e) => atualizarLinhaAula(idx, 'numAulas', e.target.value)}
+                    className="w-full border p-1 rounded bg-white"
+                  />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-                  <input placeholder="Nº Aulas" value={linha.numAulas} onChange={(e) => { const c = [...planosAula]; c[idx].numAulas = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
-                  <input placeholder="Capacidades" value={linha.capacidades} onChange={(e) => { const c = [...planosAula]; c[idx].capacidades = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
-                  <input placeholder="Conhecimentos" value={linha.conhecimentos} onChange={(e) => { const c = [...planosAula]; c[idx].conhecimentos = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
-                  <input placeholder="Estratégias / Descrição" value={linha.estrategias} onChange={(e) => { const c = [...planosAula]; c[idx].estrategias = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
-                  <input placeholder="Recursos / Ambientes" value={linha.recursos} onChange={(e) => { const c = [...planosAula]; c[idx].recursos = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
-                  <input placeholder="Critérios Avaliação" value={linha.criterios} onChange={(e) => { const c = [...planosAula]; c[idx].criterios = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
-                  <input placeholder="Instrumentos" value={linha.instrumentos} onChange={(e) => { const c = [...planosAula]; c[idx].instrumentos = e.target.value; setPlanosAula(c); }} className="border p-1.5 rounded bg-white text-slate-900" />
+                <div>
+                  <label className="block text-[10px] font-semibold">Conteúdos</label>
+                  <input
+                    type="text"
+                    value={item.conhecimentos}
+                    onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
+                    className="w-full border p-1 rounded bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold">Capacidades</label>
+                  <input
+                    type="text"
+                    value={item.capacidades}
+                    onChange={(e) => atualizarLinhaAula(idx, 'capacidades', e.target.value)}
+                    className="w-full border p-1 rounded bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold">Estratégias</label>
+                  <input
+                    type="text"
+                    value={item.estrategias}
+                    onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
+                    className="w-full border p-1 rounded bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold">Recursos</label>
+                  <input
+                    type="text"
+                    value={item.recursos}
+                    onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
+                    className="w-full border p-1 rounded bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold">Instrumentos</label>
+                  <input
+                    type="text"
+                    value={item.instrumentos}
+                    onChange={(e) => atualizarLinhaAula(idx, 'instrumentos', e.target.value)}
+                    className="w-full border p-1 rounded bg-white"
+                  />
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
-        {mensagem && (
-          <div className={`p-4 rounded-lg text-sm font-semibold ${mensagem.tipo === 'sucesso' ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
-            {mensagem.texto}
-          </div>
-        )}
-
+        {/* BOTÃO FINAL */}
         <div className="flex justify-end">
-          <button type="submit" disabled={salvando} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-md shadow-sm transition disabled:bg-slate-400">
-            {salvando ? 'Salvando PEUC...' : 'Salvar PEUC SENAI'}
+          <button
+            type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-sm shadow transition"
+          >
+            Gerar e Salvar PEUC Completa
           </button>
         </div>
       </form>
