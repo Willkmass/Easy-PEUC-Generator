@@ -9,3 +9,13 @@ body {
   padding: 0;
   background-color: #f8fafc;
 }
+/* Esconde a Vercel Toolbar do site */
+vercel-live-feedback,
+#vercel-toolbar,
+[data-vercel-toolbar],
+div[class*="vercel"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
