@@ -1,10 +1,8 @@
-import type { Metadata } from 'next';
-import Navbar from './components/Navbar';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'Easy PEUC Generator | SENAI-PR',
-  description: 'Sistema de Automação de Planos de Ensino e Extração de PCA',
+export const metadata = {
+  title: 'Sistema PEUC - SENAI',
+  description: 'Plano de Ensino da Unidade Curricular',
 };
 
 export default function RootLayout({
@@ -13,10 +11,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className="h-full bg-slate-50">
-      <body className="h-full font-sans text-slate-900 antialiased selection:bg-blue-500 selection:text-white">
-        <Navbar />
+    <html lang="pt-BR">
+      <body className="bg-slate-50 text-slate-900 antialiased">
         {children}
+        {/* Garanta que NÃO exita a tag <VercelToolbar /> aqui */}
       </body>
     </html>
   );
