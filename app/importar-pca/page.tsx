@@ -62,7 +62,7 @@ export default function ImportarPCAPage() {
       setStatus('Iniciando processamento do arquivo PDF...');
       const imagensBase64 = await converterPaginasParaImagens(file);
 
-      setStatus('Enviando para o Gemini 2.5 e salvando no Supabase...');
+      setStatus('Enviando para o Gemini e salvando no Supabase...');
       
       const response = await fetch('/api/parse-pdf', {
         method: 'POST',
@@ -72,6 +72,35 @@ export default function ImportarPCAPage() {
 
       const resData = await response.json();
       if (!response.ok) throw new Error(resData.error || 'Falha ao processar o arquivo.');
+
+      // --- SALVAMENTO E SINCRONIZAÇÃO COM O USEPEUCFORM ---
+      if (resData.dados) {
+        try {
+          const pcaParaSalvar = {
+            nome: resData.dados.curso,
+            modalidade: resData.dados.modalidade || 'Presencial',
+            unidadesCurriculares: resData.dados.unidades_curriculares.map((uc: any) => ({
+              nome: uc.nome,
+              cargaHoraria: uc.carga_horaria,
+              modulo: uc.modulo || 'Módulo I',
+              objetivo: uc.objetivo || '',
+              competencias: uc.competencias || '',
+              capacidades: uc.capacidades || {
+                tecnicas: [],
+                basicas: [],
+                socioemocionais: []
+              }
+            }))
+          };
+
+          const salvas = JSON.parse(localStorage.getItem('pcas_salvos') || '[]');
+          const filtrados = salvas.filter((p: any) => p.nome !== pcaParaSalvar.nome);
+          filtrados.unshift(pcaParaSalvar);
+          localStorage.setItem('pcas_salvos', JSON.stringify(filtrados));
+        } catch (errLocal) {
+          console.warn('Aviso: Erro ao sincronizar dados no localStorage local', errLocal);
+        }
+      }
 
       setResultado(resData);
     } catch (err: any) {
@@ -141,7 +170,7 @@ export default function ImportarPCAPage() {
                 <ul className="divide-y divide-slate-200 bg-white rounded border border-slate-200 text-sm">
                   {resultado.dados.unidades_curriculares.map((uc: any, idx: number) => (
                     <li key={idx} className="p-3 flex justify-between items-center">
-                      <span className="font-medium text-slate-800">{uc.numero}. {uc.nome}</span>
+                      <span className="font-medium text-slate-800">{uc.numero || idx + 1}. {uc.nome}</span>
                       <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">{uc.carga_horaria}h</span>
                     </li>
                   ))}
