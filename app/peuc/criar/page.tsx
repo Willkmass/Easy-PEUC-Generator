@@ -1,11 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
+interface MensagemChat {
+  role: 'user' | 'gemini';
+  texto: string;
+  dadosGerados?: {
+    contextualizacao?: string;
+    desafio?: string;
+    resultadosEsperados?: string;
+    criteriosQualidade?: string;
+  };
+}
+
 export default function CriarPEUCPage() {
   const router = useRouter();
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Estados principais
   const [listaCursos, setListaCursos] = useState<any[]>([]);
@@ -38,8 +50,11 @@ export default function CriarPEUCPage() {
 
   // Widget Gemini Chat Flutuante
   const [chatAberto, setChatAberto] = useState(false);
-  const [mensagensChat, setMensagensChat] = useState<{ role: 'user' | 'gemini'; texto: string }[]>([
-    { role: 'gemini', texto: 'Olá! Sou o Gemini. Como posso ajudar na construção da sua Situação de Aprendizagem hoje?' }
+  const [mensagensChat, setMensagensChat] = useState<MensagemChat[]>([
+    {
+      role: 'gemini',
+      texto: 'Olá! Sou o assistente Gemini. Como posso ajudar na construção da sua Situação de Aprendizagem hoje?'
+    }
   ]);
   const [inputChat, setInputChat] = useState('');
   const [enviandoChat, setEnviandoChat] = useState(false);
@@ -77,6 +92,12 @@ export default function CriarPEUCPage() {
       gerarLacunasAulas(ucCargaHoraria);
     }
   }, [ucCargaHoraria]);
+
+  useEffect(() => {
+    if (chatAberto) {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [mensagensChat, chatAberto]);
 
   const formatarTexto = (val: any): string => {
     if (!val) return '';
@@ -251,7 +272,6 @@ export default function CriarPEUCPage() {
     setCompetencias('');
   };
 
-  // Envio de mensagem para a janela flutuante do Gemini
   const enviarMensagemGemini = async (promptCustomizado?: string) => {
     const promptFinal = promptCustomizado || inputChat;
     if (!promptFinal.trim() || enviandoChat) return;
@@ -277,12 +297,33 @@ export default function CriarPEUCPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro na requisição');
 
-      setMensagensChat([...novasMensagens, { role: 'gemini', texto: data.resposta || data.contextualizacao || 'Sem resposta.' }]);
+      const temDadosEstruturados = data.contextualizacao || data.desafio;
+
+      setMensagensChat([
+        ...novasMensagens,
+        {
+          role: 'gemini',
+          texto: data.resposta || 'Abaixo está a sugestão para a sua Situação de Aprendizagem:',
+          dadosGerados: temDadosEstruturados ? {
+            contextualizacao: data.contextualizacao,
+            desafio: data.desafio,
+            resultadosEsperados: data.resultadosEsperados,
+            criteriosQualidade: data.criteriosQualidade
+          } : undefined
+        }
+      ]);
     } catch (err: any) {
       setMensagensChat([...novasMensagens, { role: 'gemini', texto: `⚠️ Erro: ${err.message}` }]);
     } finally {
       setEnviandoChat(false);
     }
+  };
+
+  const aplicarDadosNoFormulario = (dados: NonNullable<MensagemChat['dadosGerados']>) => {
+    if (dados.contextualizacao) setContextualizacao(dados.contextualizacao);
+    if (dados.desafio) setDesafio(dados.desafio);
+    if (dados.resultadosEsperados) setResultadosEsperados(dados.resultadosEsperados);
+    if (dados.criteriosQualidade) setCriteriosQualidade(dados.criteriosQualidade);
   };
 
   const adicionarLinhaAula = () => {
@@ -691,19 +732,19 @@ export default function CriarPEUCPage() {
                       placeholder="Conhecimentos..."
                       value={item.conhecimentos}
                       onChange={(e) => atualizarLinhaAula(idx, 'conhecimentos', e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none"
+                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none text-slate-200"
                     />
                     <textarea
                       placeholder="Estratégias..."
                       value={item.estrategias}
                       onChange={(e) => atualizarLinhaAula(idx, 'estrategias', e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none"
+                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none text-slate-200"
                     />
                     <textarea
                       placeholder="Recursos / Instrumentos..."
                       value={item.recursos}
                       onChange={(e) => atualizarLinhaAula(idx, 'recursos', e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none"
+                      className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 outline-none text-slate-200"
                     />
                   </div>
                 </div>
@@ -751,51 +792,56 @@ export default function CriarPEUCPage() {
               {mensagensChat.map((m, idx) => (
                 <div
                   key={idx}
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] p-3 rounded-2xl ${
+                    className={`p-3 rounded-xl max-w-[85%] whitespace-pre-wrap ${
                       m.role === 'user'
-                        ? 'bg-purple-600 text-white rounded-br-none'
-                        : 'bg-slate-800/90 text-slate-200 border border-slate-700/50 rounded-bl-none whitespace-pre-wrap'
+                        ? 'bg-indigo-600 text-white rounded-br-none'
+                        : 'bg-slate-800 text-slate-200 border border-slate-700/60 rounded-bl-none'
                     }`}
                   >
                     {m.texto}
+
+                    {m.dadosGerados && (
+                      <button
+                        type="button"
+                        onClick={() => m.dadosGerados && aplicarDadosNoFormulario(m.dadosGerados)}
+                        className="mt-3 w-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition"
+                      >
+                        ✓ Aplicar no Formulário
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
               {enviandoChat && (
-                <div className="flex justify-start">
-                  <div className="bg-slate-800 text-slate-400 p-3 rounded-2xl text-xs border border-slate-700/50 animate-pulse">
-                    Pensando e gerando resposta...
-                  </div>
+                <div className="flex items-center gap-2 text-slate-400 text-xs italic">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
+                  Gemini está gerando...
                 </div>
               )}
+              <div ref={chatBottomRef} />
             </div>
 
             {/* Input do Chat */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                enviarMensagemGemini();
-              }}
-              className="p-3 bg-slate-950 border-t border-slate-800 flex gap-2"
-            >
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
               <input
                 type="text"
                 value={inputChat}
                 onChange={(e) => setInputChat(e.target.value)}
-                placeholder="Pergunte ao Gemini..."
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-purple-500"
+                onKeyDown={(e) => e.key === 'Enter' && enviarMensagemGemini()}
+                placeholder="Peça uma sugestão para a SA..."
+                className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs outline-none focus:border-purple-500"
               />
               <button
-                type="submit"
+                onClick={() => enviarMensagemGemini()}
                 disabled={enviandoChat}
-                className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-xs transition"
+                className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-xs disabled:opacity-50"
               >
                 Enviar
               </button>
-            </form>
+            </div>
           </div>
         )}
       </div>
