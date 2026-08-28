@@ -71,31 +71,32 @@ export function usePeucForm() {
     }
   ]);
 
+  // Converter qualquer tipo de dado (Array, Objeto, String) para String formatada
   const formatarTexto = (val: any): string => {
     if (!val) return '';
     if (Array.isArray(val)) {
       return val
         .map((item) => {
-          if (typeof item === 'string') return item;
+          if (typeof item === 'string') return item.trim();
           if (typeof item === 'object' && item !== null) {
-            return item.descricao || item.nome || item.titulo || item.texto || JSON.stringify(item);
+            return (item.descricao || item.nome || item.titulo || item.texto || JSON.stringify(item)).trim();
           }
-          return String(item);
+          return String(item).trim();
         })
         .filter(Boolean)
         .join('\n');
     }
     if (typeof val === 'object') {
-      return val.descricao || val.nome || val.titulo || JSON.stringify(val, null, 2);
+      return (val.descricao || val.nome || val.titulo || JSON.stringify(val, null, 2)).trim();
     }
-    return String(val);
+    return String(val).trim();
   };
 
-  // Processador universal de capacidades
-  const processarEAdaptarCapacidades = (ucObjeto: any, aulas: typeof planosAula) => {
+  // Extrai lista universal independente do nome da chave ou estrutura
+  const extrairCapacidadesDaUC = (ucObjeto: any) => {
     if (!ucObjeto) return;
 
-    const extrairListaGenerica = (fonte: any): string[] => {
+    const extrairLinhas = (fonte: any): string[] => {
       if (!fonte) return [];
       if (Array.isArray(fonte)) {
         return fonte
@@ -106,86 +107,78 @@ export function usePeucForm() {
             }
             return '';
           })
-          .filter((s) => s.length > 2);
+          .filter((s) => s.length > 0);
       }
       if (typeof fonte === 'string') {
-        return fonte.split(/\n|;|\./).map((s) => s.trim()).filter((s) => s.length > 2);
+        return fonte
+          .split(/\n|;/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
       }
       return [];
     };
 
-    // 1. Tentar extrair diretamente se o PCA já tiver os campos separados
-    const capsBrutas = ucObjeto.capacidades || {};
-    let basicasLista = extrairListaGenerica(capsBrutas.basicas || ucObjeto.capacidades_basicas || ucObjeto.capacidadesBasicas);
-    let tecnicasLista = extrairListaGenerica(capsBrutas.tecnicas || ucObjeto.capacidades_tecnicas || ucObjeto.capacidadesTecnicas);
-    let socioLista = extrairListaGenerica(capsBrutas.socioemocionais || ucObjeto.capacidades_socioemocionais || ucObjeto.capacidadesSocioemocionais);
+    const caps = ucObjeto.capacidades || {};
 
-    // 2. Se tudo estiver dentro de um array genérico de capacidades
-    if (basicasLista.length === 0 && tecnicasLista.length === 0 && socioLista.length === 0) {
-      const listaUnica = extrairListaGenerica(ucObjeto.capacidades || ucObjeto.listaCapacidades);
-      tecnicasLista = listaUnica;
-    }
+    // 1. Busca ampla por todos os nomes possíveis de chaves
+    let tecnicas = extrairLinhas(
+      caps.tecnicas ||
+      ucObjeto.capacidades_tecnicas ||
+      ucObjeto.capacidadesTecnicas ||
+      ucObjeto.tecnicas
+    );
 
-    // 3. Algoritmo de Triagem (Caso estejam misturadas na lista de técnicas)
-    if (tecnicasLista.length > 0 && basicasLista.length === 0 && socioLista.length === 0) {
-      const todas = [...tecnicasLista];
-      tecnicasLista = [];
+    let basicas = extrairLinhas(
+      caps.basicas ||
+      ucObjeto.capacidades_basicas ||
+      ucObjeto.capacidadesBasicas ||
+      ucObjeto.basicas
+    );
 
-      const moduloNome = (modulo || ucObjeto.modulo || ucObjeto.modulo_nome || '').toLowerCase();
-      const ehModuloBasico = moduloNome.includes('básico') || moduloNome.includes('basico') || moduloNome.includes('introdução');
+    let socio = extrairLinhas(
+      caps.socioemocionais ||
+      ucObjeto.capacidades_socioemocionais ||
+      ucObjeto.capacidadesSocioemocionais ||
+      ucObjeto.socioemocionais ||
+      ucObjeto.socio_emocionais
+    );
 
-      todas.forEach((cap) => {
-        const capLower = cap.toLowerCase();
-        
-        // Termos típicos socioemocionais (SENAI)
+    // 2. Se a UC só tiver uma lista genérica 'capacidades' ou 'listaCapacidades'
+    if (tecnicas.length === 0 && basicas.length === 0 && socio.length === 0) {
+      const listaUnica = extrairLinhas(ucObjeto.capacidades || ucObjeto.listaCapacidades);
+      
+      // Triagem por inteligência de palavras-chave caso venham juntas em uma lista só
+      listaUnica.forEach((cap) => {
+        const cLower = cap.toLowerCase();
         if (
-          capLower.includes('equipe') ||
-          capLower.includes('comunicação') ||
-          capLower.includes('ética') ||
-          capLower.includes('proatividade') ||
-          capLower.includes('gestão') ||
-          capLower.includes('liderança') ||
-          capLower.includes('autonomia') ||
-          capLower.includes('comprometimento') ||
-          capLower.includes('conflito') ||
-          capLower.includes('relacionamento')
+          cLower.includes('equipe') ||
+          cLower.includes('comunicação') ||
+          cLower.includes('ética') ||
+          cLower.includes('proatividade') ||
+          cLower.includes('relacionamento') ||
+          cLower.includes('autonomia') ||
+          cLower.includes('liderança') ||
+          cLower.includes('atitude')
         ) {
-          socioLista.push(cap);
-        } 
-        // Termos típicos de capacidades básicas
-        else if (
-          ehModuloBasico ||
-          capLower.includes('fundamento') ||
-          capLower.includes('calcular') ||
-          capLower.includes('interpretar') ||
-          capLower.includes('identificar') ||
-          capLower.includes('conceito') ||
-          capLower.includes('leitura') ||
-          capLower.includes('reconhecer')
+          socio.push(cap);
+        } else if (
+          cLower.includes('interpretar') ||
+          cLower.includes('calcular') ||
+          cLower.includes('fundamento') ||
+          cLower.includes('conceito') ||
+          cLower.includes('leitura') ||
+          cLower.includes('reconhecer')
         ) {
-          basicasLista.push(cap);
-        } 
-        // Restante permanece como técnica
-        else {
-          tecnicasLista.push(cap);
+          basicas.push(cap);
+        } else {
+          tecnicas.push(cap);
         }
       });
     }
 
-    // 4. Inserção contextual baseada no Plano de Aula
-    const estrategiasTexto = aulas.map((a) => a.estrategias).join(' ').toLowerCase();
-    if (estrategiasTexto.trim().length > 0) {
-      if ((estrategiasTexto.includes('grupo') || estrategiasTexto.includes('equipe') || estrategiasTexto.includes('apresentação')) && socioLista.length === 0) {
-        socioLista.push('Demonstrar capacidade de trabalho em equipe e comunicação assertiva.');
-      }
-      if ((estrategiasTexto.includes('pesquisa') || estrategiasTexto.includes('manual') || estrategiasTexto.includes('estudo')) && basicasLista.length === 0) {
-        basicasLista.push('Compreender e interpretar os fundamentos técnicos e científicos.');
-      }
-    }
-
-    setCapacidadesTecnicas(tecnicasLista.join('\n'));
-    setCapacidadesBasicas(basicasLista.join('\n'));
-    setCapacidadesSocioemocionais(socioLista.join('\n'));
+    setCapacidadesTecnicas(tecnicas.join('\n'));
+    setCapacidadesBasicas(basicas.join('\n'));
+    setCapacidadesSocioemocionais(socio.join('\n'));
   };
 
   const gerarLacunasAulas = (cargaHoraria: string) => {
@@ -309,12 +302,13 @@ export function usePeucForm() {
     setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
     setUcCargaHoraria(uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '');
     setModulo(uc.modulo || uc.modulo_nome || '');
-    
+
     const caps = uc.capacidades || {};
     setObjetivoGeral(formatarTexto(uc.objetivo_geral || uc.objetivo || caps.objetivo || uc.conhecimentos));
     setCompetencias(formatarTexto(uc.competencias || uc.competencia || caps.competencia));
-    
-    processarEAdaptarCapacidades(uc, planosAula);
+
+    // Chama a função isolada e corrigida de extração
+    extrairCapacidadesDaUC(uc);
   };
 
   const limparUC = () => {
