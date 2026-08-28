@@ -98,7 +98,7 @@ export function usePeucForm() {
     return String(val).trim();
   };
 
-  // Coleta TODAS as capacidades da UC em uma única lista sem categorizar previamente (Suporte a múltiplos schemas)
+  // Coleta TODAS as capacidades da UC em uma única lista
   const extrairListaUnicaCapacidades = (ucObjeto: any): string[] => {
     if (!ucObjeto) return [];
 
@@ -122,7 +122,6 @@ export function usePeucForm() {
       }
     };
 
-    // Varre diversas chaves possíveis vindas do localStorage ou banco
     extrair(ucObjeto.capacidades);
     extrair(ucObjeto.capacidades_tecnicas);
     extrair(ucObjeto.capacidades_basicas);
@@ -153,7 +152,7 @@ export function usePeucForm() {
     }
   };
 
-  // PREENCHIMENTO AUTOMÁTICO COM DEBOUNCE E RESPEITO À EDIÇÃO MANUAL
+  // PREENCHIMENTO AUTOMÁTICO COM DEBOUNCE
   useEffect(() => {
     if ((!contextualizacao && !desafio) || gerandoSocioemocionais) return;
 
@@ -240,38 +239,6 @@ export function usePeucForm() {
     let cursosEncontrados: any[] = [];
 
     try {
-      // 1. Tenta carregar do localStorage primeiro (Versão Alfa)
-      const chavesLocais = ['pcas_salvos', 'cursos_peuc', 'cursos', 'pcas'];
-      for (const chave of chavesLocais) {
-        const dadosLocais = localStorage.getItem(chave);
-        if (dadosLocais) {
-          try {
-            const parsed = JSON.parse(dadosLocais);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              cursosEncontrados = parsed;
-              break;
-            }
-          } catch (e) {
-            console.warn(`Erro ao ler chave local ${chave}:`, e);
-          }
-        }
-      }
-
-      // 2. Se não encontrou no localStorage, tenta buscar tabelas válidas existentes no Supabase
-      if (cursosEncontrados.length === 0) {
-        const { data: cursosDb } = await supabase.from('cursos').select('*');
-        if (cursosDb && cursosDb.length > 0) {
-          cursosEncontrados = cursosDb;
-        }
-      }
-    } catch (e) {
-      console.warn('Erro durante o carregamento dos cursos:', e);
-    } finally {
-      setListaCursos(cursosEncontrados);
-      setCarregando(false);
-    }
-  };
-  try {
       const chavesRelevantes = ['cursos_peuc', 'pcas_salvos', 'cursos', 'pcas'];
       chavesRelevantes.forEach((chave) => {
         const itemStr = localStorage.getItem(chave);
@@ -290,8 +257,15 @@ export function usePeucForm() {
           }
         }
       });
+
+      if (cursosEncontrados.length === 0) {
+        const { data: cursosDb } = await supabase.from('cursos').select('*');
+        if (cursosDb && cursosDb.length > 0) {
+          cursosEncontrados = cursosDb;
+        }
+      }
     } catch (err) {
-      console.error('Erro ao ler localStorage:', err);
+      console.error('Erro ao ler dados:', err);
     }
 
     const cursosFormatados = cursosEncontrados
@@ -441,7 +415,7 @@ export function usePeucForm() {
       capacidades_tecnicas: capacidadesTecnicas,
       capacidades_basicas: capacidadesBasicas,
       capacidades_socioemocionais: capacidadesSocioemocionais,
-      tipo_situacao: tipoSituacao,
+      tipoSituacao,
       contextualizacao,
       desafio,
       resultados_esperados: resultadosEsperados,
@@ -450,7 +424,6 @@ export function usePeucForm() {
       created_at: new Date().toISOString()
     };
 
-    // 1. Salvamento prioritário local (Versão Alfa)
     try {
       const salvas = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
       salvas.unshift(novaPEUC);
@@ -459,11 +432,10 @@ export function usePeucForm() {
       console.error('Erro ao salvar localmente:', err);
     }
 
-    // 2. Tentativa de espelhamento no Supabase (silenciosa se falhar)
     try {
       await supabase.from('peucs').insert([novaPEUC]);
     } catch (err) {
-      console.warn('Erro ao salvar no Supabase, mantido apenas no localStorage.');
+      console.warn('Erro ao salvar no Supabase, mantido no localStorage.');
     }
 
     router.push(`/peuc/visualizar/${novaPEUC.id}`);
