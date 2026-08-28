@@ -35,7 +35,7 @@ export default function ImportarPCAPage() {
       setStatus(`Convertendo página ${i} de ${numPaginas} para imagem...`);
       const page = await pdf.getPage(i);
       const viewport = page.getViewport({ scale: 1.5 });
-      
+
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.height = viewport.height;
@@ -62,8 +62,8 @@ export default function ImportarPCAPage() {
       setStatus('Iniciando processamento do arquivo PDF...');
       const imagensBase64 = await converterPaginasParaImagens(file);
 
-      setStatus('Enviando para o Gemini e salvando no Supabase...');
-      
+      setStatus('Enviando para o Gemini e processando dados...');
+
       const response = await fetch('/api/parse-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,32 +73,62 @@ export default function ImportarPCAPage() {
       const resData = await response.json();
       if (!response.ok) throw new Error(resData.error || 'Falha ao processar o arquivo.');
 
-      // --- SALVAMENTO E SINCRONIZAÇÃO COM O USEPEUCFORM ---
+      // --- SALVAMENTO E SINCRONIZAÇÃO TOTALMENTE COMPATÍVEL ---
       if (resData.dados) {
         try {
-          const pcaParaSalvar = {
-            nome: resData.dados.curso,
-            modalidade: resData.dados.modalidade || 'Presencial',
-            unidadesCurriculares: resData.dados.unidades_curriculares.map((uc: any) => ({
-              nome: uc.nome,
-              cargaHoraria: uc.carga_horaria,
-              modulo: uc.modulo || 'Módulo I',
-              objetivo: uc.objetivo || '',
-              competencias: uc.competencias || '',
-              capacidades: uc.capacidades || {
-                tecnicas: [],
-                basicas: [],
-                socioemocionais: []
-              }
-            }))
+          // Extrai e normaliza capacidades independentemente da estrutura que o Gemini retornar
+          const normalizarCapacidades = (cap: any): string[] => {
+            if (!cap) return [];
+            if (Array.isArray(cap)) return cap.map(c => typeof c === 'string' ? c : (c.descricao || c.nome || JSON.stringify(c)));
+            if (typeof cap === 'object') {
+              const tecnicas = cap.tecnicas || cap.capacidades_tecnicas || [];
+              const basicas = cap.basicas || cap.capacidades_basicas || [];
+              const socio = cap.socioemocionais || cap.capacidades_socioemocionais || [];
+              return [...tecnicas, ...basicas, ...socio].map(c => typeof c === 'string' ? c : (c.descricao || c.nome || String(c)));
+            }
+            return [String(cap)];
           };
 
+          const ucsProcessadas = (resData.dados.unidades_curriculares || []).map((uc: any) => {
+            const listaCapacidades = normalizarCapacidades(uc.capacidades);
+            
+            return {
+              // Mantém TODAS as variações possíveis de chave para garantir compatibilidade total
+              nome: uc.nome || uc.nomeUc || '',
+              nomeUc: uc.nome || uc.nomeUc || '',
+              nome_uc: uc.nome || uc.nomeUc || '',
+              
+              cargaHoraria: String(uc.carga_horaria || uc.cargaHoraria || '80'),
+              carga_horaria: String(uc.carga_horaria || uc.cargaHoraria || '80'),
+              
+              modulo: uc.modulo || 'Módulo I',
+              objetivo_geral: uc.objetivo || uc.objetivo_geral || '',
+              competencias: uc.competencias || uc.competencia || '',
+              
+              // Garante que o array de capacidades esteja descompactado e plano
+              capacidades: listaCapacidades,
+              capacidades_tecnicas: uc.capacidades?.tecnicas || [],
+              capacidades_basicas: uc.capacidades?.basicas || []
+            };
+          });
+
+          const pcaParaSalvar = {
+            nome: resData.dados.curso,
+            nomeCurso: resData.dados.curso,
+            modalidade: resData.dados.modalidade || 'Presencial',
+            unidadesCurriculares: ucsProcessadas,
+            ucs: ucsProcessadas
+          };
+
+          // Grava nas duas chaves possíveis consultadas pela aplicação
           const salvas = JSON.parse(localStorage.getItem('pcas_salvos') || '[]');
-          const filtrados = salvas.filter((p: any) => p.nome !== pcaParaSalvar.nome);
+          const filtrados = salvas.filter((p: any) => (p.nome || p.nomeCurso) !== pcaParaSalvar.nome);
           filtrados.unshift(pcaParaSalvar);
+
           localStorage.setItem('pcas_salvos', JSON.stringify(filtrados));
+          localStorage.setItem('cursos_peuc', JSON.stringify(filtrados));
         } catch (errLocal) {
-          console.warn('Aviso: Erro ao sincronizar dados no localStorage local', errLocal);
+          console.warn('Aviso: Erro ao sincronizar dados no localStorage', errLocal);
         }
       }
 
@@ -118,19 +148,19 @@ export default function ImportarPCAPage() {
           Importar Plano de Curso (PCA)
         </h1>
         <p className="text-sm text-slate-500 mb-6">
-          Selecione um PDF do SENAI-PR para extrair a Categoria, Curso e Unidades Curriculares direto para o Supabase.
+          Selecione um PDF do SENAI-PR para extrair a Categoria, Curso e Unidades Curriculares direto para a sua aplicação.
         </p>
 
         <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center bg-slate-50/50 hover:bg-slate-50 transition">
-          <input 
-            type="file" 
-            accept="application/pdf" 
-            onChange={handleFileUpload} 
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileUpload}
             disabled={loading}
             className="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
           />
         </div>
-        
+
         {loading && (
           <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
             <p className="text-blue-700 font-medium animate-pulse text-sm">{status}</p>
@@ -146,9 +176,9 @@ export default function ImportarPCAPage() {
         {resultado && (
           <div className="mt-6 rounded-lg bg-slate-50 p-6 border border-slate-200">
             <span className="inline-block rounded bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 mb-4">
-              ✓ Cadastro realizado com sucesso no banco de dados
+              ✓ Cadastro e sincronização realizados com sucesso!
             </span>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
               <div className="bg-white p-3 rounded border border-slate-200">
                 <span className="text-xs font-semibold uppercase text-slate-400 block">Categoria</span>
