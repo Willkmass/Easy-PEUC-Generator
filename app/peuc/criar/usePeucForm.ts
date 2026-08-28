@@ -149,9 +149,9 @@ export function usePeucForm() {
     }
   };
 
-  // PREENCHIMENTO AUTOMÁTICO COM DEBOUNCE VIA IA
+  // PREENCHIMENTO AUTOMÁTICO COM DEBOUNCE E RESPEITO À EDIÇÃO MANUAL
   useEffect(() => {
-    if (!contextualizacao && !desafio) return;
+    if ((!contextualizacao && !desafio) || gerandoSocioemocionais) return;
 
     const timer = setTimeout(async () => {
       setGerandoSocioemocionais(true);
@@ -170,7 +170,8 @@ export function usePeucForm() {
 
         const data = await res.json();
         if (res.ok && data.sugestoes) {
-          setCapacidadesSocioemocionais(data.sugestoes);
+          // Atualiza apenas se o campo estiver vazio ou aplica a sugestão mantendo o texto editável
+          setCapacidadesSocioemocionais((prev) => (prev.trim() === '' ? data.sugestoes : prev));
         }
       } catch (err) {
         console.error('Erro ao sugerir capacidades socioemocionais via IA:', err);
