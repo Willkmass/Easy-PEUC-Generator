@@ -38,7 +38,7 @@ export function usePeucForm() {
   const [objetivoGeral, setObjetivoGeral] = useState('');
   const [competencias, setCompetencias] = useState('');
 
-  // NOVA ABORDAGEM: Lista unificada de capacidades do PCA para seleção pelo usuário
+  // Lista unificada de capacidades do PCA para seleção pelo usuário
   const [capacidadesDisponiveis, setCapacidadesDisponiveis] = useState<string[]>([]);
 
   // Campos de Texto Editáveis no Formulário
@@ -98,7 +98,7 @@ export function usePeucForm() {
     return String(val).trim();
   };
 
-  // Coleta TODAS as capacidades da UC em uma única lista sem tentar categorizá-las
+  // Coleta TODAS as capacidades da UC em uma única lista sem categorizar previamente
   const extrairListaUnicaCapacidades = (ucObjeto: any): string[] => {
     if (!ucObjeto) return [];
 
@@ -149,42 +149,38 @@ export function usePeucForm() {
     }
   };
 
-  // Gera Capacidades Socioemocionais via IA com base na Situação de Aprendizagem preenchida
-  const gerarSocioemocionaisComIA = async () => {
-    if (!contextualizacao && !desafio) {
-      alert('Preencha a Contextualização e/ou o Desafio da Situação de Aprendizagem antes de gerar as capacidades socioemocionais.');
-      return;
-    }
+  // PREENCHIMENTO AUTOMÁTICO COM DEBOUNCE VIA IA
+  useEffect(() => {
+    if (!contextualizacao && !desafio) return;
 
-    setGerandoSocioemocionais(true);
+    const timer = setTimeout(async () => {
+      setGerandoSocioemocionais(true);
+      try {
+        const res = await fetch('/api/gerar-socioemocionais', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            curso: cursoSelecionado,
+            uc: ucSelecionada,
+            tipoSituacao,
+            contextualizacao,
+            desafio,
+          }),
+        });
 
-    try {
-      const res = await fetch('/api/gerar-socioemocionais', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          curso: cursoSelecionado,
-          uc: ucSelecionada,
-          tipoSituacao,
-          contextualizacao,
-          desafio,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erro ao gerar capacidades socioemocionais.');
-
-      if (data.sugestoes) {
-        setCapacidadesSocioemocionais((prev) =>
-          prev ? `${prev}\n${data.sugestoes}` : data.sugestoes
-        );
+        const data = await res.json();
+        if (res.ok && data.sugestoes) {
+          setCapacidadesSocioemocionais(data.sugestoes);
+        }
+      } catch (err) {
+        console.error('Erro ao sugerir capacidades socioemocionais via IA:', err);
+      } finally {
+        setGerandoSocioemocionais(false);
       }
-    } catch (err: any) {
-      alert(`⚠️ Erro ao comunicar com a IA: ${err.message}`);
-    } finally {
-      setGerandoSocioemocionais(false);
-    }
-  };
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [contextualizacao, desafio, cursoSelecionado, ucSelecionada, tipoSituacao]);
 
   const aplicarUC = (uc: any) => {
     setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
@@ -194,11 +190,9 @@ export function usePeucForm() {
     setObjetivoGeral(formatarTexto(uc.objetivo_geral || uc.objetivo || uc.capacidades?.objetivo || uc.conhecimentos));
     setCompetencias(formatarTexto(uc.competencias || uc.competencia || uc.capacidades?.competencia));
 
-    // Carrega a lista única para o seletor visual
     const listaExtraida = extrairListaUnicaCapacidades(uc);
     setCapacidadesDisponiveis(listaExtraida);
 
-    // Reinicia os campos para livre preenchimento ou seleção
     setCapacidadesTecnicas('');
     setCapacidadesBasicas('');
     setCapacidadesSocioemocionais('');
@@ -502,7 +496,6 @@ export function usePeucForm() {
     aoMudarCurso,
     aoMudarUC,
     adicionarCapacidadeAoCampo,
-    gerarSocioemocionaisComIA,
     enviarMensagemGemini,
     aplicarDadosNoFormulario,
     adicionarLinhaAula,
