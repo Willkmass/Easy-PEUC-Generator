@@ -34,9 +34,14 @@ export function usePeucForm() {
   const [numAulas, setNumAulas] = useState('20');
   const [numSa, setNumSa] = useState('1');
 
-  // Objetivos e Capacidades
+  // Objetivos e Competências
   const [objetivoGeral, setObjetivoGeral] = useState('');
   const [competencias, setCompetencias] = useState('');
+
+  // NOVA ABORDAGEM: Lista unificada de capacidades do PCA para seleção pelo usuário
+  const [capacidadesDisponiveis, setCapacidadesDisponiveis] = useState<string[]>([]);
+
+  // Campos de Texto Editáveis no Formulário
   const [capacidadesTecnicas, setCapacidadesTecnicas] = useState('');
   const [capacidadesBasicas, setCapacidadesBasicas] = useState('');
   const [capacidadesSocioemocionais, setCapacidadesSocioemocionais] = useState('');
@@ -48,7 +53,8 @@ export function usePeucForm() {
   const [resultadosEsperados, setResultadosEsperados] = useState('');
   const [criteriosQualidade, setCriteriosQualidade] = useState('');
 
-  // Widget Gemini Chat Flutuante
+  // Estados de Carregamento e Gemini IA
+  const [gerandoSocioemocionais, setGerandoSocioemocionais] = useState(false);
   const [chatAberto, setChatAberto] = useState(false);
   const [mensagensChat, setMensagensChat] = useState<MensagemChat[]>([
     {
@@ -71,7 +77,7 @@ export function usePeucForm() {
     }
   ]);
 
-  // Converter qualquer tipo de dado (Array, Objeto, String) para String formatada
+  // Formatador universal de dados para texto legível
   const formatarTexto = (val: any): string => {
     if (!val) return '';
     if (Array.isArray(val)) {
@@ -92,93 +98,122 @@ export function usePeucForm() {
     return String(val).trim();
   };
 
-  // Extrai lista universal independente do nome da chave ou estrutura
-  const extrairCapacidadesDaUC = (ucObjeto: any) => {
-    if (!ucObjeto) return;
+  // Coleta TODAS as capacidades da UC em uma única lista sem tentar categorizá-las
+  const extrairListaUnicaCapacidades = (ucObjeto: any): string[] => {
+    if (!ucObjeto) return [];
 
-    const extrairLinhas = (fonte: any): string[] => {
-      if (!fonte) return [];
+    const listaBruta: string[] = [];
+
+    const extrair = (fonte: any) => {
+      if (!fonte) return;
       if (Array.isArray(fonte)) {
-        return fonte
-          .map((item) => {
-            if (typeof item === 'string') return item.trim();
-            if (typeof item === 'object' && item !== null) {
-              return (item.descricao || item.nome || item.titulo || item.texto || '').trim();
-            }
-            return '';
-          })
-          .filter((s) => s.length > 0);
+        fonte.forEach((item) => {
+          if (typeof item === 'string' && item.trim()) listaBruta.push(item.trim());
+          else if (typeof item === 'object' && item !== null) {
+            const txt = item.descricao || item.nome || item.titulo || item.texto;
+            if (txt) listaBruta.push(String(txt).trim());
+          }
+        });
+      } else if (typeof fonte === 'string') {
+        fonte.split(/\n|;/).forEach((s) => {
+          if (s.trim()) listaBruta.push(s.trim());
+        });
       }
-      if (typeof fonte === 'string') {
-        return fonte
-          .split(/\n|;/)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
-      }
-      return [];
     };
 
-    const caps = ucObjeto.capacidades || {};
-
-    // 1. Busca ampla por todos os nomes possíveis de chaves
-    let tecnicas = extrairLinhas(
-      caps.tecnicas ||
-      ucObjeto.capacidades_tecnicas ||
-      ucObjeto.capacidadesTecnicas ||
-      ucObjeto.tecnicas
-    );
-
-    let basicas = extrairLinhas(
-      caps.basicas ||
-      ucObjeto.capacidades_basicas ||
-      ucObjeto.capacidadesBasicas ||
-      ucObjeto.basicas
-    );
-
-    let socio = extrairLinhas(
-      caps.socioemocionais ||
-      ucObjeto.capacidades_socioemocionais ||
-      ucObjeto.capacidadesSocioemocionais ||
-      ucObjeto.socioemocionais ||
-      ucObjeto.socio_emocionais
-    );
-
-    // 2. Se a UC só tiver uma lista genérica 'capacidades' ou 'listaCapacidades'
-    if (tecnicas.length === 0 && basicas.length === 0 && socio.length === 0) {
-      const listaUnica = extrairLinhas(ucObjeto.capacidades || ucObjeto.listaCapacidades);
-      
-      // Triagem por inteligência de palavras-chave caso venham juntas em uma lista só
-      listaUnica.forEach((cap) => {
-        const cLower = cap.toLowerCase();
-        if (
-          cLower.includes('equipe') ||
-          cLower.includes('comunicação') ||
-          cLower.includes('ética') ||
-          cLower.includes('proatividade') ||
-          cLower.includes('relacionamento') ||
-          cLower.includes('autonomia') ||
-          cLower.includes('liderança') ||
-          cLower.includes('atitude')
-        ) {
-          socio.push(cap);
-        } else if (
-          cLower.includes('interpretar') ||
-          cLower.includes('calcular') ||
-          cLower.includes('fundamento') ||
-          cLower.includes('conceito') ||
-          cLower.includes('leitura') ||
-          cLower.includes('reconhecer')
-        ) {
-          basicas.push(cap);
-        } else {
-          tecnicas.push(cap);
-        }
-      });
+    const caps = ucObjeto.capacidades;
+    if (Array.isArray(caps)) {
+      extrair(caps);
+    } else if (typeof caps === 'object' && caps !== null) {
+      extrair(caps.tecnicas);
+      extrair(caps.basicas);
+      extrair(caps.socioemocionais);
+      extrair(caps.gerais);
     }
 
-    setCapacidadesTecnicas(tecnicas.join('\n'));
-    setCapacidadesBasicas(basicas.join('\n'));
-    setCapacidadesSocioemocionais(socio.join('\n'));
+    extrair(ucObjeto.capacidades_tecnicas);
+    extrair(ucObjeto.capacidades_basicas);
+    extrair(ucObjeto.listaCapacidades);
+
+    return Array.from(new Set(listaBruta));
+  };
+
+  // Insere o item selecionado na caixa escolhida (Técnicas ou Básicas)
+  const adicionarCapacidadeAoCampo = (capacidade: string, destino: 'tecnica' | 'basica') => {
+    if (!capacidade) return;
+
+    if (destino === 'tecnica') {
+      setCapacidadesTecnicas((prev) => (prev ? `${prev}\n• ${capacidade}` : `• ${capacidade}`));
+    } else {
+      setCapacidadesBasicas((prev) => (prev ? `${prev}\n• ${capacidade}` : `• ${capacidade}`));
+    }
+  };
+
+  // Gera Capacidades Socioemocionais via IA com base na Situação de Aprendizagem preenchida
+  const gerarSocioemocionaisComIA = async () => {
+    if (!contextualizacao && !desafio) {
+      alert('Preencha a Contextualização e/ou o Desafio da Situação de Aprendizagem antes de gerar as capacidades socioemocionais.');
+      return;
+    }
+
+    setGerandoSocioemocionais(true);
+
+    try {
+      const res = await fetch('/api/gerar-socioemocionais', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          curso: cursoSelecionado,
+          uc: ucSelecionada,
+          tipoSituacao,
+          contextualizacao,
+          desafio,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao gerar capacidades socioemocionais.');
+
+      if (data.sugestoes) {
+        setCapacidadesSocioemocionais((prev) =>
+          prev ? `${prev}\n${data.sugestoes}` : data.sugestoes
+        );
+      }
+    } catch (err: any) {
+      alert(`⚠️ Erro ao comunicar com a IA: ${err.message}`);
+    } finally {
+      setGerandoSocioemocionais(false);
+    }
+  };
+
+  const aplicarUC = (uc: any) => {
+    setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
+    setUcCargaHoraria(uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '');
+    setModulo(uc.modulo || uc.modulo_nome || '');
+
+    setObjetivoGeral(formatarTexto(uc.objetivo_geral || uc.objetivo || uc.capacidades?.objetivo || uc.conhecimentos));
+    setCompetencias(formatarTexto(uc.competencias || uc.competencia || uc.capacidades?.competencia));
+
+    // Carrega a lista única para o seletor visual
+    const listaExtraida = extrairListaUnicaCapacidades(uc);
+    setCapacidadesDisponiveis(listaExtraida);
+
+    // Reinicia os campos para livre preenchimento ou seleção
+    setCapacidadesTecnicas('');
+    setCapacidadesBasicas('');
+    setCapacidadesSocioemocionais('');
+  };
+
+  const limparUC = () => {
+    setUcSelecionada('');
+    setUcCargaHoraria('');
+    setModulo('');
+    setCapacidadesDisponiveis([]);
+    setCapacidadesTecnicas('');
+    setCapacidadesBasicas('');
+    setCapacidadesSocioemocionais('');
+    setObjetivoGeral('');
+    setCompetencias('');
   };
 
   const gerarLacunasAulas = (cargaHoraria: string) => {
@@ -218,7 +253,7 @@ export function usePeucForm() {
         if (cursosDb && cursosDb.length > 0) cursosEncontrados = cursosDb;
       }
     } catch (e) {
-      console.warn('Busca no Supabase falhou, buscando no localStorage:', e);
+      console.warn('Busca no Supabase falhou, buscando localmente:', e);
     }
 
     try {
@@ -296,30 +331,6 @@ export function usePeucForm() {
       (u) => (u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo) === nomeUC
     );
     if (ucEncontrada) aplicarUC(ucEncontrada);
-  };
-
-  const aplicarUC = (uc: any) => {
-    setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
-    setUcCargaHoraria(uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '');
-    setModulo(uc.modulo || uc.modulo_nome || '');
-
-    const caps = uc.capacidades || {};
-    setObjetivoGeral(formatarTexto(uc.objetivo_geral || uc.objetivo || caps.objetivo || uc.conhecimentos));
-    setCompetencias(formatarTexto(uc.competencias || uc.competencia || caps.competencia));
-
-    // Chama a função isolada e corrigida de extração
-    extrairCapacidadesDaUC(uc);
-  };
-
-  const limparUC = () => {
-    setUcSelecionada('');
-    setUcCargaHoraria('');
-    setModulo('');
-    setCapacidadesTecnicas('');
-    setCapacidadesBasicas('');
-    setCapacidadesSocioemocionais('');
-    setObjetivoGeral('');
-    setCompetencias('');
   };
 
   const enviarMensagemGemini = async (promptCustomizado?: string) => {
@@ -455,6 +466,7 @@ export function usePeucForm() {
     numSa,
     objetivoGeral,
     competencias,
+    capacidadesDisponiveis,
     capacidadesTecnicas,
     capacidadesBasicas,
     capacidadesSocioemocionais,
@@ -463,6 +475,7 @@ export function usePeucForm() {
     desafio,
     resultadosEsperados,
     criteriosQualidade,
+    gerandoSocioemocionais,
     chatAberto,
     mensagensChat,
     inputChat,
@@ -488,6 +501,8 @@ export function usePeucForm() {
     setInputChat,
     aoMudarCurso,
     aoMudarUC,
+    adicionarCapacidadeAoCampo,
+    gerarSocioemocionaisComIA,
     enviarMensagemGemini,
     aplicarDadosNoFormulario,
     adicionarLinhaAula,
