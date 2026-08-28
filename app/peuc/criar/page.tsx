@@ -71,6 +71,107 @@ export default function CriarPEUCPage() {
     }
   ]);
 
+  const formatarTexto = (val: any): string => {
+    if (!val) return '';
+    if (Array.isArray(val)) {
+      return val.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n');
+    }
+    if (typeof val === 'object') return JSON.stringify(val, null, 2);
+    return String(val);
+  };
+
+  /**
+   * FUNÇÃO PARA REFINAR E DISTRIBUIR CAPACIDADES (BÁSICAS, TÉCNICAS E SOCIOEMOCIONAIS)
+   * E ADAPTÁ-LAS CONFORME AS ESTRATÉGIAS DE APRENDIZAGEM PREENCHIDAS.
+   */
+  const processarEAdaptarCapacidades = (ucObjeto: any, aulas: typeof planosAula) => {
+    if (!ucObjeto) return;
+
+    // 1. Extração bruta de dados da UC/PCA
+    const capsBrutas = ucObjeto.capacidades || {};
+    let basicasLista: string[] = [];
+    let tecnicasLista: string[] = [];
+    let socioLista: string[] = [];
+
+    const extrairArray = (fonte: any): string[] => {
+      if (!fonte) return [];
+      if (Array.isArray(fonte)) return fonte.map((item) => String(item).trim());
+      if (typeof fonte === 'string') {
+        return fonte.split(/\n|;|\./).map((s) => s.trim()).filter((s) => s.length > 3);
+      }
+      return [];
+    };
+
+    // Tenta obter listas diretas caso existam no objeto
+    basicasLista = extrairArray(capsBrutas.basicas || ucObjeto.capacidades_basicas || ucObjeto.capacidadesBasicas);
+    tecnicasLista = extrairArray(capsBrutas.tecnicas || ucObjeto.capacidades_tecnicas || ucObjeto.capacidadesTecnicas);
+    socioLista = extrairArray(capsBrutas.socioemocionais || ucObjeto.capacidades_socioemocionais || ucObjeto.capacidadesSocioemocionais);
+
+    // Se tudo veio em um único bloco misturado ou apenas em "técnicas", realiza a triagem por regras/palavras-chave
+    if (tecnicasLista.length > 0 && basicasLista.length === 0 && socioLista.length === 0) {
+      const todas = [...tecnicasLista];
+      tecnicasLista = [];
+
+      const ehModuloBasico = (modulo || ucObjeto.modulo || '').toLowerCase().includes('básico') || 
+                             (modulo || ucObjeto.modulo || '').toLowerCase().includes('basico');
+
+      todas.forEach((cap) => {
+        const capLower = cap.toLowerCase();
+
+        // Identifica Capacidades Socioemocionais (Gestão, Comportamental, Atitudes)
+        if (
+          capLower.includes('trabalhar em equipe') ||
+          capLower.includes('comunicação') ||
+          capLower.includes('ética') ||
+          capLower.includes('proatividade') ||
+          capLower.includes('gestão') ||
+          capLower.includes('liderança') ||
+          capLower.includes('autonomia') ||
+          capLower.includes('comprometimento') ||
+          capLower.includes('resolução de conflitos')
+        ) {
+          socioLista.push(cap);
+        } 
+        // Identifica Capacidades Básicas (Fundamentos Técnicos e Científicos/Módulo Básico)
+        else if (
+          ehModuloBasico ||
+          capLower.includes('fundamento') ||
+          capLower.includes('calcular') ||
+          capLower.includes('interpretar') ||
+          capLower.includes('identificar') ||
+          capLower.includes('conceito') ||
+          capLower.includes('leitura de')
+        ) {
+          basicasLista.push(cap);
+        } 
+        // Capacidades Técnicas (Execução e Especificidades do Módulo)
+        else {
+          tecnicasLista.push(cap);
+        }
+      });
+    }
+
+    // 2. Adaptação (Auto-edição) baseada nas Estratégias de Aprendizagem preenchidas nas Aulas
+    const estrategiasTexto = aulas.map((a) => a.estrategias).join(' ').toLowerCase();
+
+    if (estrategiasTexto.trim().length > 0) {
+      // Se as estratégias envolvem "Trabalho em Grupo", "Apresentação", "Pitch", garante capacidades socioemocionais relativas
+      if ((estrategiasTexto.includes('grupo') || estrategiasTexto.includes('equipe') || estrategiasTexto.includes('apresentação')) && socioLista.length === 0) {
+        socioLista.push('Demonstrar capacidade de trabalho em equipe e comunicação assertiva na exposição da solução.');
+      }
+
+      // Se envolve "Pesquisa", "Leitura de Manuais", "Análise de Fichas Técnicas", alinha às Básicas
+      if ((estrategiasTexto.includes('pesquisa') || estrategiasTexto.includes('manual') || estrategiasTexto.includes('estudo')) && basicasLista.length === 0) {
+        basicasLista.push('Compreender e interpretar os fundamentos técnicos e científicos aplicados ao desafio.');
+      }
+    }
+
+    // Atualiza os estados formatados
+    setCapacidadesBasicas(basicasLista.join('\n'));
+    setCapacidadesTecnicas(tecnicasLista.join('\n'));
+    setCapacidadesSocioemocionais(socioLista.join('\n'));
+  };
+
   const gerarLacunasAulas = (cargaHoraria: string) => {
     const ch = parseFloat(cargaHoraria);
     if (!isNaN(ch) && ch > 0) {
@@ -99,14 +200,15 @@ export default function CriarPEUCPage() {
     }
   }, [mensagensChat, chatAberto]);
 
-  const formatarTexto = (val: any): string => {
-    if (!val) return '';
-    if (Array.isArray(val)) {
-      return val.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n');
+  // Hook reativo: Re-adapta as capacidades conforme as estratégias nos Planos de Aula são alteradas
+  useEffect(() => {
+    const ucAtual = ucsDisponiveis.find(
+      (u) => (u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo) === ucSelecionada
+    );
+    if (ucAtual) {
+      processarEAdaptarCapacidades(ucAtual, planosAula);
     }
-    if (typeof val === 'object') return JSON.stringify(val, null, 2);
-    return String(val);
-  };
+  }, [planosAula]);
 
   const carregarDadosCursosEUCs = async () => {
     setCarregando(true);
@@ -244,21 +346,11 @@ export default function CriarPEUCPage() {
     setModulo(uc.modulo || uc.modulo_nome || '');
 
     const caps = uc.capacidades || {};
-
-    if (typeof caps === 'object' && !Array.isArray(caps)) {
-      setCapacidadesTecnicas(formatarTexto(caps.tecnicas || uc.capacidades_tecnicas || uc.capacidadesTecnicas));
-      setCapacidadesBasicas(formatarTexto(caps.basicas || uc.capacidades_basicas || uc.capacidadesBasicas));
-      setCapacidadesSocioemocionais(
-        formatarTexto(caps.socioemocionais || uc.capacidades_socioemocionais || uc.capacidadesSocioemocionais)
-      );
-    } else {
-      setCapacidadesTecnicas(formatarTexto(caps || uc.capacidades_tecnicas || uc.capacidadesTecnicas));
-      setCapacidadesBasicas(formatarTexto(uc.capacidades_basicas || uc.capacidadesBasicas));
-      setCapacidadesSocioemocionais(formatarTexto(uc.capacidades_socioemocionais || uc.capacidadesSocioemocionais));
-    }
-
     setObjetivoGeral(formatarTexto(caps.objetivo || uc.objetivo_geral || uc.objetivo || uc.conhecimentos));
     setCompetencias(formatarTexto(caps.competencia || uc.competencias || uc.competencia));
+
+    // Executa o novo algoritmo de separação e refinamento de capacidades
+    processarEAdaptarCapacidades(uc, planosAula);
   };
 
   const limparUC = () => {
@@ -304,12 +396,14 @@ export default function CriarPEUCPage() {
         {
           role: 'gemini',
           texto: data.resposta || 'Abaixo está a sugestão para a sua Situação de Aprendizagem:',
-          dadosGerados: temDadosEstruturados ? {
-            contextualizacao: data.contextualizacao,
-            desafio: data.desafio,
-            resultadosEsperados: data.resultadosEsperados,
-            criteriosQualidade: data.criteriosQualidade
-          } : undefined
+          dadosGerados: temDadosEstruturados
+            ? {
+                contextualizacao: data.contextualizacao,
+                desafio: data.desafio,
+                resultadosEsperados: data.resultadosEsperados,
+                criteriosQualidade: data.criteriosQualidade
+              }
+            : undefined
         }
       ]);
     } catch (err: any) {
@@ -425,7 +519,6 @@ export default function CriarPEUCPage() {
 
       <div className="max-w-6xl mx-auto px-6">
         <form onSubmit={salvarPEUC} className="space-y-8">
-          
           {/* SEÇÃO 1: IDENTIFICAÇÃO GERAL */}
           <section className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg backdrop-blur-sm">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-5 mb-6 border-b border-slate-800/80 gap-3">
@@ -752,98 +845,16 @@ export default function CriarPEUCPage() {
             </div>
           </section>
 
-          <button
-            type="submit"
-            className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-2xl shadow-xl transition active:scale-[0.99] text-sm tracking-wide"
-          >
-            Salvar Plano PEUC
-          </button>
-        </form>
-      </div>
-
-      {/* WIDGET FLUTUANTE DO GEMINI CHAT */}
-      <div className="fixed bottom-6 right-6 z-50">
-        {!chatAberto ? (
-          <button
-            onClick={() => setChatAberto(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold px-4 py-3 rounded-full shadow-2xl hover:scale-105 transition active:scale-95 border border-purple-400/30"
-          >
-            <span className="text-lg">✨</span>
-            <span className="text-xs">Assistente Gemini</span>
-          </button>
-        ) : (
-          <div className="w-80 sm:w-96 h-[480px] bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4">
-            {/* Header do Chat */}
-            <div className="bg-slate-950 p-3.5 border-b border-slate-800 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-bold text-xs text-purple-300">Gemini IA Assistant</span>
-              </div>
-              <button
-                onClick={() => setChatAberto(false)}
-                className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Mensagens do Chat */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
-              {mensagensChat.map((m, idx) => (
-                <div
-                  key={idx}
-                  className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`p-3 rounded-xl max-w-[85%] whitespace-pre-wrap ${
-                      m.role === 'user'
-                        ? 'bg-indigo-600 text-white rounded-br-none'
-                        : 'bg-slate-800 text-slate-200 border border-slate-700/60 rounded-bl-none'
-                    }`}
-                  >
-                    {m.texto}
-
-                    {m.dadosGerados && (
-                      <button
-                        type="button"
-                        onClick={() => m.dadosGerados && aplicarDadosNoFormulario(m.dadosGerados)}
-                        className="mt-3 w-full bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition"
-                      >
-                        ✓ Aplicar no Formulário
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {enviandoChat && (
-                <div className="flex items-center gap-2 text-slate-400 text-xs italic">
-                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-ping" />
-                  Gemini está gerando...
-                </div>
-              )}
-              <div ref={chatBottomRef} />
-            </div>
-
-            {/* Input do Chat */}
-            <div className="p-3 bg-slate-950 border-t border-slate-800 flex gap-2">
-              <input
-                type="text"
-                value={inputChat}
-                onChange={(e) => setInputChat(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && enviarMensagemGemini()}
-                placeholder="Peça uma sugestão para a SA..."
-                className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs outline-none focus:border-purple-500"
-              />
-              <button
-                onClick={() => enviarMensagemGemini()}
-                disabled={enviandoChat}
-                className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-xs disabled:opacity-50"
-              >
-                Enviar
-              </button>
-            </div>
+          {/* BOTAO DE SALVAR */}
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg hover:shadow-indigo-500/25 transition active:scale-95 text-xs"
+            >
+              Salvar Plano de Ensino
+            </button>
           </div>
-        )}
+        </form>
       </div>
     </main>
   );
