@@ -74,44 +74,72 @@ export function usePeucForm() {
   const formatarTexto = (val: any): string => {
     if (!val) return '';
     if (Array.isArray(val)) {
-      return val.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n');
+      return val
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (typeof item === 'object' && item !== null) {
+            return item.descricao || item.nome || item.titulo || item.texto || JSON.stringify(item);
+          }
+          return String(item);
+        })
+        .filter(Boolean)
+        .join('\n');
     }
-    if (typeof val === 'object') return JSON.stringify(val, null, 2);
+    if (typeof val === 'object') {
+      return val.descricao || val.nome || val.titulo || JSON.stringify(val, null, 2);
+    }
     return String(val);
   };
 
+  // Processador universal de capacidades
   const processarEAdaptarCapacidades = (ucObjeto: any, aulas: typeof planosAula) => {
     if (!ucObjeto) return;
 
-    const capsBrutas = ucObjeto.capacidades || {};
-    let basicasLista: string[] = [];
-    let tecnicasLista: string[] = [];
-    let socioLista: string[] = [];
-
-    const extrairArray = (fonte: any): string[] => {
+    const extrairListaGenerica = (fonte: any): string[] => {
       if (!fonte) return [];
-      if (Array.isArray(fonte)) return fonte.map((item) => String(item).trim());
+      if (Array.isArray(fonte)) {
+        return fonte
+          .map((item) => {
+            if (typeof item === 'string') return item.trim();
+            if (typeof item === 'object' && item !== null) {
+              return (item.descricao || item.nome || item.titulo || item.texto || '').trim();
+            }
+            return '';
+          })
+          .filter((s) => s.length > 2);
+      }
       if (typeof fonte === 'string') {
-        return fonte.split(/\n|;|\./).map((s) => s.trim()).filter((s) => s.length > 3);
+        return fonte.split(/\n|;|\./).map((s) => s.trim()).filter((s) => s.length > 2);
       }
       return [];
     };
 
-    basicasLista = extrairArray(capsBrutas.basicas || ucObjeto.capacidades_basicas || ucObjeto.capacidadesBasicas);
-    tecnicasLista = extrairArray(capsBrutas.tecnicas || ucObjeto.capacidades_tecnicas || ucObjeto.capacidadesTecnicas);
-    socioLista = extrairArray(capsBrutas.socioemocionais || ucObjeto.capacidades_socioemocionais || ucObjeto.capacidadesSocioemocionais);
+    // 1. Tentar extrair diretamente se o PCA já tiver os campos separados
+    const capsBrutas = ucObjeto.capacidades || {};
+    let basicasLista = extrairListaGenerica(capsBrutas.basicas || ucObjeto.capacidades_basicas || ucObjeto.capacidadesBasicas);
+    let tecnicasLista = extrairListaGenerica(capsBrutas.tecnicas || ucObjeto.capacidades_tecnicas || ucObjeto.capacidadesTecnicas);
+    let socioLista = extrairListaGenerica(capsBrutas.socioemocionais || ucObjeto.capacidades_socioemocionais || ucObjeto.capacidadesSocioemocionais);
 
+    // 2. Se tudo estiver dentro de um array genérico de capacidades
+    if (basicasLista.length === 0 && tecnicasLista.length === 0 && socioLista.length === 0) {
+      const listaUnica = extrairListaGenerica(ucObjeto.capacidades || ucObjeto.listaCapacidades);
+      tecnicasLista = listaUnica;
+    }
+
+    // 3. Algoritmo de Triagem (Caso estejam misturadas na lista de técnicas)
     if (tecnicasLista.length > 0 && basicasLista.length === 0 && socioLista.length === 0) {
       const todas = [...tecnicasLista];
       tecnicasLista = [];
 
-      const ehModuloBasico = (modulo || ucObjeto.modulo || '').toLowerCase().includes('básico') || 
-                             (modulo || ucObjeto.modulo || '').toLowerCase().includes('basico');
+      const moduloNome = (modulo || ucObjeto.modulo || ucObjeto.modulo_nome || '').toLowerCase();
+      const ehModuloBasico = moduloNome.includes('básico') || moduloNome.includes('basico') || moduloNome.includes('introdução');
 
       todas.forEach((cap) => {
         const capLower = cap.toLowerCase();
+        
+        // Termos típicos socioemocionais (SENAI)
         if (
-          capLower.includes('trabalhar em equipe') ||
+          capLower.includes('equipe') ||
           capLower.includes('comunicação') ||
           capLower.includes('ética') ||
           capLower.includes('proatividade') ||
@@ -119,38 +147,44 @@ export function usePeucForm() {
           capLower.includes('liderança') ||
           capLower.includes('autonomia') ||
           capLower.includes('comprometimento') ||
-          capLower.includes('resolução de conflitos')
+          capLower.includes('conflito') ||
+          capLower.includes('relacionamento')
         ) {
           socioLista.push(cap);
-        } else if (
+        } 
+        // Termos típicos de capacidades básicas
+        else if (
           ehModuloBasico ||
           capLower.includes('fundamento') ||
           capLower.includes('calcular') ||
           capLower.includes('interpretar') ||
           capLower.includes('identificar') ||
           capLower.includes('conceito') ||
-          capLower.includes('leitura de')
+          capLower.includes('leitura') ||
+          capLower.includes('reconhecer')
         ) {
           basicasLista.push(cap);
-        } else {
+        } 
+        // Restante permanece como técnica
+        else {
           tecnicasLista.push(cap);
         }
       });
     }
 
+    // 4. Inserção contextual baseada no Plano de Aula
     const estrategiasTexto = aulas.map((a) => a.estrategias).join(' ').toLowerCase();
-
     if (estrategiasTexto.trim().length > 0) {
       if ((estrategiasTexto.includes('grupo') || estrategiasTexto.includes('equipe') || estrategiasTexto.includes('apresentação')) && socioLista.length === 0) {
-        socioLista.push('Demonstrar capacidade de trabalho em equipe e comunicação assertiva na exposição da solução.');
+        socioLista.push('Demonstrar capacidade de trabalho em equipe e comunicação assertiva.');
       }
       if ((estrategiasTexto.includes('pesquisa') || estrategiasTexto.includes('manual') || estrategiasTexto.includes('estudo')) && basicasLista.length === 0) {
-        basicasLista.push('Compreender e interpretar os fundamentos técnicos e científicos aplicados ao desafio.');
+        basicasLista.push('Compreender e interpretar os fundamentos técnicos e científicos.');
       }
     }
 
-    setCapacidadesBasicas(basicasLista.join('\n'));
     setCapacidadesTecnicas(tecnicasLista.join('\n'));
+    setCapacidadesBasicas(basicasLista.join('\n'));
     setCapacidadesSocioemocionais(socioLista.join('\n'));
   };
 
@@ -178,13 +212,6 @@ export function usePeucForm() {
     if (chatAberto) chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagensChat, chatAberto]);
 
-  useEffect(() => {
-    const ucAtual = ucsDisponiveis.find(
-      (u) => (u.nomeUc || u.nome_uc || u.nome || u.unidade || u.titulo) === ucSelecionada
-    );
-    if (ucAtual) processarEAdaptarCapacidades(ucAtual, planosAula);
-  }, [planosAula]);
-
   const carregarDadosCursosEUCs = async () => {
     setCarregando(true);
     let cursosEncontrados: any[] = [];
@@ -198,7 +225,7 @@ export function usePeucForm() {
         if (cursosDb && cursosDb.length > 0) cursosEncontrados = cursosDb;
       }
     } catch (e) {
-      console.warn('Busca no Supabase falhou, tentando localStorage:', e);
+      console.warn('Busca no Supabase falhou, buscando no localStorage:', e);
     }
 
     try {
@@ -218,27 +245,6 @@ export function usePeucForm() {
           } catch (e) {}
         }
       });
-
-      if (cursosEncontrados.length === 0) {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key) {
-            const itemStr = localStorage.getItem(key);
-            if (itemStr) {
-              try {
-                const parsed = JSON.parse(itemStr);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  if (parsed[0].nome || parsed[0].nomeCurso || parsed[0].nome_curso || parsed[0].ucs || parsed[0].unidadesCurriculares) {
-                    cursosEncontrados = [...cursosEncontrados, ...parsed];
-                  }
-                } else if (parsed && typeof parsed === 'object' && (parsed.nome || parsed.nomeCurso || parsed.nome_curso)) {
-                  cursosEncontrados.push(parsed);
-                }
-              } catch (err) {}
-            }
-          }
-        }
-      }
     } catch (err) {
       console.error('Erro ao ler localStorage:', err);
     }
@@ -303,9 +309,11 @@ export function usePeucForm() {
     setUcSelecionada(uc.nomeUc || uc.nome_uc || uc.nome || uc.unidade || uc.titulo || '');
     setUcCargaHoraria(uc.cargaHoraria || uc.carga_horaria || uc.ch || uc.horas || '');
     setModulo(uc.modulo || uc.modulo_nome || '');
+    
     const caps = uc.capacidades || {};
-    setObjetivoGeral(formatarTexto(caps.objetivo || uc.objetivo_geral || uc.objetivo || uc.conhecimentos));
-    setCompetencias(formatarTexto(caps.competencia || uc.competencias || uc.competencia));
+    setObjetivoGeral(formatarTexto(uc.objetivo_geral || uc.objetivo || caps.objetivo || uc.conhecimentos));
+    setCompetencias(formatarTexto(uc.competencias || uc.competencia || caps.competencia));
+    
     processarEAdaptarCapacidades(uc, planosAula);
   };
 
