@@ -24,11 +24,13 @@ REGRAS ESTRITAS DE EXTRAÇÃO:
 1. "categoria": Apenas a modalidade pedagógica (ex: "Aprendizagem Industrial", "Habilitação Técnica").
 2. "curso": APENAS o nome oficial do curso/ocupação (ex: "Assistente Administrativo").
 3. "carga_horaria_total": Formato "XXXh" (ex: "600h").
-4. "unidades_curriculares": Extraia TODAS as Unidades Curriculares (UC1, UC2, etc.) presentes no documento. É OBRIGATÓRIO extrair ao menos as UCs presentes na Matriz Curricular.
+4. "unidades_curriculares": Extraia TODAS as Unidades Curriculares (UC1, UC2, etc.) presentes no documento.
 
-REGRA DE PREENCHIMENTO DE UCS:
-- Se "capacidades" ou "conhecimentos" não constarem no PDF para alguma UC, preencha com array vazio [].
-- NUNCA retorne a lista "unidades_curriculares" vazia.`;
+REGRA RÍGIDA PARA CAPACIDADES DE CADA UC:
+Separe obrigatoriamente as capacidades em 3 categorias:
+- tecnicas: Capacidades ligadas à execução prática e operacional da profissão.
+- basicas: Conhecimentos fundamentais, interpretação de textos, normas da Língua Portuguesa, conceitos e cálculos.
+- socioemocionais: Atitudes, ética, trabalho em equipe, comunicação assertiva e postura profissional.`;
 
     const parts: any[] = [{ text: systemPrompt }];
 
@@ -69,16 +71,33 @@ REGRA DE PREENCHIMENTO DE UCS:
                       numero: { type: 'INTEGER' },
                       nome: { type: 'STRING' },
                       carga_horaria: { type: 'INTEGER' },
-                      capacidades: { 
-                        type: 'ARRAY', 
-                        items: { type: 'STRING' }
+                      modulo: { type: 'STRING' },
+                      objetivo: { type: 'STRING' },
+                      competencias: { type: 'STRING' },
+                      capacidades: {
+                        type: 'OBJECT',
+                        properties: {
+                          tecnicas: {
+                            type: 'ARRAY',
+                            items: { type: 'STRING' },
+                          },
+                          basicas: {
+                            type: 'ARRAY',
+                            items: { type: 'STRING' },
+                          },
+                          socioemocionais: {
+                            type: 'ARRAY',
+                            items: { type: 'STRING' },
+                          },
+                        },
+                        required: ['tecnicas', 'basicas', 'socioemocionais'],
                       },
-                      conhecimentos: { 
-                        type: 'ARRAY', 
-                        items: { type: 'STRING' }
+                      conhecimentos: {
+                        type: 'ARRAY',
+                        items: { type: 'STRING' },
                       },
                     },
-                    required: ['nome'],
+                    required: ['nome', 'capacidades'],
                   },
                 },
               },
@@ -99,7 +118,6 @@ REGRA DE PREENCHIMENTO DE UCS:
 
     const parsedData = JSON.parse(data.candidates[0].content.parts[0].text);
 
-    // Validação extra: Bloqueia a gravação se não encontrou UCs
     if (!parsedData.unidades_curriculares || parsedData.unidades_curriculares.length === 0) {
       return NextResponse.json(
         { error: 'A IA não conseguiu identificar nenhuma Unidade Curricular nas imagens enviadas.' },
@@ -122,20 +140,22 @@ REGRA DE PREENCHIMENTO DE UCS:
       return NextResponse.json({ error: `Erro ao salvar curso no Supabase: ${erroCurso.message}` }, { status: 500 });
     }
 
-    // 2. Grava as Unidades Curriculares vinculadas ao Curso
+    // 2. Grava as Unidades Curriculares vinculadas ao Curso com o JSON de capacidades completo
     const ucsPayload = parsedData.unidades_curriculares.map((uc: any, index: number) => ({
       curso_id: cursoCriado.id,
       numero: uc.numero || index + 1,
       nome: uc.nome || `Unidade Curricular ${index + 1}`,
       carga_horaria: uc.carga_horaria || 0,
-      capacidades: uc.capacidades || [],
+      modulo: uc.modulo || '',
+      objetivo: uc.objetivo || '',
+      competencias: uc.competencias || '',
+      capacidades: uc.capacidades || { tecnicas: [], basicas: [], socioemocionais: [] },
       conhecimentos: uc.conhecimentos || [],
     }));
 
     const { error: erroUC } = await supabase.from('unidades_curriculares').insert(ucsPayload);
 
     if (erroUC) {
-      // Rollback: exclui o curso para não deixar o cadastro quebrado (0 UCs)
       await supabase.from('cursos').delete().eq('id', cursoCriado.id);
       return NextResponse.json({ error: `Erro ao salvar UCs no Supabase: ${erroUC.message}` }, { status: 500 });
     }
