@@ -85,7 +85,7 @@ export function usePeucForm() {
         .map((item) => {
           if (typeof item === 'string') return item.trim();
           if (typeof item === 'object' && item !== null) {
-            return (item.descricao || item.nome || item.titulo || item.texto || JSON.stringify(item)).trim();
+            return (item.descricao || item.nome || item.titulo || item.texto || item.capacidade || JSON.stringify(item)).trim();
           }
           return String(item).trim();
         })
@@ -98,7 +98,7 @@ export function usePeucForm() {
     return String(val).trim();
   };
 
-  // Coleta TODAS as capacidades da UC em uma única lista sem categorizar previamente
+  // Coleta TODAS as capacidades da UC em uma única lista sem categorizar previamente (Suporte a múltiplos schemas)
   const extrairListaUnicaCapacidades = (ucObjeto: any): string[] => {
     if (!ucObjeto) return [];
 
@@ -108,9 +108,10 @@ export function usePeucForm() {
       if (!fonte) return;
       if (Array.isArray(fonte)) {
         fonte.forEach((item) => {
-          if (typeof item === 'string' && item.trim()) listaBruta.push(item.trim());
-          else if (typeof item === 'object' && item !== null) {
-            const txt = item.descricao || item.nome || item.titulo || item.texto;
+          if (typeof item === 'string' && item.trim()) {
+            listaBruta.push(item.trim());
+          } else if (typeof item === 'object' && item !== null) {
+            const txt = item.descricao || item.nome || item.titulo || item.texto || item.capacidade || item.elemento;
             if (txt) listaBruta.push(String(txt).trim());
           }
         });
@@ -121,19 +122,22 @@ export function usePeucForm() {
       }
     };
 
-    const caps = ucObjeto.capacidades;
-    if (Array.isArray(caps)) {
-      extrair(caps);
-    } else if (typeof caps === 'object' && caps !== null) {
-      extrair(caps.tecnicas);
-      extrair(caps.basicas);
-      extrair(caps.socioemocionais);
-      extrair(caps.gerais);
-    }
-
+    // Varre diversas chaves possíveis vindas do localStorage ou banco
+    extrair(ucObjeto.capacidades);
     extrair(ucObjeto.capacidades_tecnicas);
     extrair(ucObjeto.capacidades_basicas);
     extrair(ucObjeto.listaCapacidades);
+    extrair(ucObjeto.habilidades);
+    extrair(ucObjeto.conhecimentos);
+    extrair(ucObjeto.elementos);
+
+    if (typeof ucObjeto.capacidades === 'object' && ucObjeto.capacidades !== null && !Array.isArray(ucObjeto.capacidades)) {
+      extrair(ucObjeto.capacidades.tecnicas);
+      extrair(ucObjeto.capacidades.basicas);
+      extrair(ucObjeto.capacidades.socioemocionais);
+      extrair(ucObjeto.capacidades.gerais);
+      extrair(ucObjeto.capacidades.itens);
+    }
 
     return Array.from(new Set(listaBruta));
   };
@@ -170,7 +174,6 @@ export function usePeucForm() {
 
         const data = await res.json();
         if (res.ok && data.sugestoes) {
-          // Atualiza apenas se o campo estiver vazio ou aplica a sugestão mantendo o texto editável
           setCapacidadesSocioemocionais((prev) => (prev.trim() === '' ? data.sugestoes : prev));
         }
       } catch (err) {
@@ -193,10 +196,6 @@ export function usePeucForm() {
 
     const listaExtraida = extrairListaUnicaCapacidades(uc);
     setCapacidadesDisponiveis(listaExtraida);
-
-    setCapacidadesTecnicas('');
-    setCapacidadesBasicas('');
-    setCapacidadesSocioemocionais('');
   };
 
   const limparUC = () => {
@@ -235,24 +234,45 @@ export function usePeucForm() {
     if (chatAberto) chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagensChat, chatAberto]);
 
+  // CARREGAMENTO ALFA: Prioriza o LocalStorage totalmente offline e sem erros 404
   const carregarDadosCursosEUCs = async () => {
     setCarregando(true);
     let cursosEncontrados: any[] = [];
 
     try {
-      const { data: pcasDb, error: errPca } = await supabase.from('pcas').select('*');
-      if (!errPca && pcasDb && pcasDb.length > 0) {
-        cursosEncontrados = pcasDb;
-      } else {
+      // 1. Tenta carregar do localStorage primeiro (Versão Alfa)
+      const chavesLocais = ['pcas_salvos', 'cursos_peuc', 'cursos', 'pcas'];
+      for (const chave of chavesLocais) {
+        const dadosLocais = localStorage.getItem(chave);
+        if (dadosLocais) {
+          try {
+            const parsed = JSON.parse(dadosLocais);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cursosEncontrados = parsed;
+              break;
+            }
+          } catch (e) {
+            console.warn(`Erro ao ler chave local ${chave}:`, e);
+          }
+        }
+      }
+
+      // 2. Se não encontrou no localStorage, tenta buscar tabelas válidas existentes no Supabase
+      if (cursosEncontrados.length === 0) {
         const { data: cursosDb } = await supabase.from('cursos').select('*');
-        if (cursosDb && cursosDb.length > 0) cursosEncontrados = cursosDb;
+        if (cursosDb && cursosDb.length > 0) {
+          cursosEncontrados = cursosDb;
+        }
       }
     } catch (e) {
-      console.warn('Busca no Supabase falhou, buscando localmente:', e);
+      console.warn('Erro durante o carregamento dos cursos:', e);
+    } finally {
+      setListaCursos(cursosEncontrados);
+      setCarregando(false);
     }
-
-    try {
-      const chavesRelevantes = ['cursos_peuc', 'pcas_salvos', 'cursos'];
+  };
+  try {
+      const chavesRelevantes = ['cursos_peuc', 'pcas_salvos', 'cursos', 'pcas'];
       chavesRelevantes.forEach((chave) => {
         const itemStr = localStorage.getItem(chave);
         if (itemStr) {
@@ -265,7 +285,9 @@ export function usePeucForm() {
               if (Array.isArray(arr)) cursosEncontrados = [...cursosEncontrados, ...arr];
               else cursosEncontrados.push(parsed);
             }
-          } catch (e) {}
+          } catch (e) {
+            console.warn(`Erro ao processar JSON da chave ${chave}:`, e);
+          }
         }
       });
     } catch (err) {
@@ -428,6 +450,7 @@ export function usePeucForm() {
       created_at: new Date().toISOString()
     };
 
+    // 1. Salvamento prioritário local (Versão Alfa)
     try {
       const salvas = JSON.parse(localStorage.getItem('peucs_salvas') || '[]');
       salvas.unshift(novaPEUC);
@@ -436,10 +459,11 @@ export function usePeucForm() {
       console.error('Erro ao salvar localmente:', err);
     }
 
+    // 2. Tentativa de espelhamento no Supabase (silenciosa se falhar)
     try {
       await supabase.from('peucs').insert([novaPEUC]);
     } catch (err) {
-      console.warn('Erro Supabase, mantido salvo localmente.');
+      console.warn('Erro ao salvar no Supabase, mantido apenas no localStorage.');
     }
 
     router.push(`/peuc/visualizar/${novaPEUC.id}`);
